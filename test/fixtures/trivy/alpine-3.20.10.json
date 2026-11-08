@@ -1,0 +1,91 @@
+{
+ "SchemaVersion": 2,
+ "Trivy": {
+  "Version": "0.76.2",
+  "Server": {
+   "Version": "0.76.1",
+   "VulnerabilityDB": {
+    "Version": 2,
+    "NextUpdate": "2026-11-09T06:39:21.614725236Z",
+    "UpdatedAt": "2026-11-08T06:39:21.614725497Z",
+    "DownloadedAt": "2026-11-08T07:21:33.848552517Z"
+   }
+  }
+ },
+ "ReportID": "01a1bb9a-db06-74b3-b045-b793fd89c4ed",
+ "CreatedAt": "2026-11-08T09:40:50.43831-05:00",
+ "ArtifactID": "sha256:a2894410625576cfd80d4cbd06b405102b8df7684ec7909ccc67eab6524b90eb",
+ "ArtifactName": "index.docker.io/library/alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc",
+ "ArtifactType": "container_image",
+ "Metadata": {
+  "Size": 8092160,
+  "OS": {
+   "Family": "alpine",
+   "Name": "3.20.10",
+   "EOSL": true
+  },
+  "ImageID": "sha256:bf8527eb54c3680e728d5b4b383a8ba730d72dae7236fbc8dff97ed6b224a731",
+  "DiffIDs": [
+   "sha256:08bc4e534116aa76b16015484b82eac51f9a593416feae9296c8a2d4bb7aa4a2"
+  ],
+  "RepoDigests": [
+   "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+  ],
+  "Reference": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+ },
+ "Results": [
+  {
+   "Target": "index.docker.io/library/alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc (alpine 3.20.10)",
+   "Class": "os-pkgs",
+   "Type": "alpine",
+   "Vulnerabilities": [
+    {
+     "VulnerabilityID": "CVE-2026-107891",
+     "PkgID": "musl@1.2.5-r3",
+     "PkgName": "musl",
+     "PkgIdentifier": {
+      "PURL": "pkg:apk/alpine/musl@1.2.5-r3?arch=x86_64&distro=3.20.10",
+      "UID": "2b2196d6d2f5c9e1"
+     },
+     "InstalledVersion": "1.2.5-r3",
+     "FixedVersion": "1.2.5-r4",
+     "Status": "fixed",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-107891",
+     "Title": "musl: musl: Arbitrary code execution via integer overflow in regcomp",
+     "Severity": "HIGH",
+     "CVSS": {
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+       "V3Score": 8.1
+      }
+     },
+     "PublishedDate": "2026-11-05T16:17:32.15Z",
+     "LastModifiedDate": "2026-11-05T17:17:35.287Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-107891",
+     "PkgID": "musl-utils@1.2.5-r3",
+     "PkgName": "musl-utils",
+     "PkgIdentifier": {
+      "PURL": "pkg:apk/alpine/musl-utils@1.2.5-r3?arch=x86_64&distro=3.20.10",
+      "UID": "395247919e880f93"
+     },
+     "InstalledVersion": "1.2.5-r3",
+     "FixedVersion": "1.2.5-r4",
+     "Status": "fixed",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-107891",
+     "Title": "musl: musl: Arbitrary code execution via integer overflow in regcomp",
+     "Severity": "HIGH",
+     "CVSS": {
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+       "V3Score": 8.1
+      }
+     },
+     "PublishedDate": "2026-11-05T16:17:32.15Z",
+     "LastModifiedDate": "2026-11-05T17:17:35.287Z"
+    }
+   ]
+  }
+ ]
+}

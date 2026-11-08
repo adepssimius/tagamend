@@ -1,0 +1,1110 @@
+[
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:13:37Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "bf665978",
+        "trivy-operator.container.name": "demo-api",
+        "trivy-operator.resource.kind": "ReplicaSet",
+        "trivy-operator.resource.name": "demo-api-7c4967f8db",
+        "trivy-operator.resource.namespace": "team-a"
+      },
+      "name": "replicaset-demo-api-7c4967f8db-demo-api",
+      "namespace": "team-a",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "demo-api-7c4967f8db",
+          "uid": "a6d531b2-3963-3b52-f8e8-b8a75c3193c0"
+        }
+      ],
+      "resourceVersion": "810901844",
+      "uid": "2af2b447-eff7-7baf-e76f-a72d94346dce"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:23f03846bdc538562a26ad33e2183876d8b9f7fdb7bee63d4a5969c1bc6ce5bc",
+        "repository": "example/demo-api",
+        "tag": "latest"
+      },
+      "os": {
+        "family": "debian",
+        "name": "13.7"
+      },
+      "registry": {
+        "server": "ghcr.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 0,
+        "highCount": 10,
+        "lowCount": 0,
+        "mediumCount": 13,
+        "noneCount": 0,
+        "unknownCount": 112
+      },
+      "updateTimestamp": "2026-11-07T19:13:37Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "",
+          "installedVersion": "6.5+20250216-2",
+          "lastModifiedDate": "2026-06-17T10:00:50Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/libncursesw6@6.5%2B20250216-2?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2025-69720",
+          "publishedDate": "2026-03-19T15:16:21Z",
+          "resource": "libncursesw6",
+          "score": 7.8,
+          "severity": "HIGH",
+          "target": "",
+          "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution.",
+          "vulnerabilityID": "CVE-2025-69720"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "1:2.41.5-0+deb13u1",
+          "lastModifiedDate": "2026-11-06T19:17:49Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-3184",
+          "publishedDate": "2026-04-03T19:17:23Z",
+          "resource": "bsdutils",
+          "score": 3.7,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "util-linux: util-linux: Access control bypass due to improper hostname canonicalization",
+          "vulnerabilityID": "CVE-2026-3184"
+        },
+        {
+          "fixedVersion": "3.0.4",
+          "installedVersion": "3.0.3",
+          "lastModifiedDate": "2026-11-05T05:18:19Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/apt@3.0.3?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-109518",
+          "publishedDate": "2026-11-04T16:17:33Z",
+          "resource": "apt",
+          "score": 8.1,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "apt: apt: Remote code execution via hard link reuse during package download retries",
+          "vulnerabilityID": "CVE-2026-109518"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:19:49Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "6d88f84f9",
+        "trivy-operator.container.name": "psql",
+        "trivy-operator.resource.kind": "Job",
+        "trivy-operator.resource.name": "demo-db-init",
+        "trivy-operator.resource.namespace": "team-c"
+      },
+      "name": "job-demo-db-init-psql",
+      "namespace": "team-c",
+      "ownerReferences": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "Job",
+          "name": "demo-db-init",
+          "uid": "958777f9-5a44-e41f-bcc5-08be323f9ba2"
+        }
+      ],
+      "resourceVersion": "810912262",
+      "uid": "adf245fe-5f3c-a32c-71bf-a17d0e8888d2"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:8abd8e6f451f6257d85af39b5e08810635639678a3889c2c31ad059aa32ccc4b",
+        "repository": "example/db-client",
+        "tag": "16"
+      },
+      "os": {
+        "family": "debian",
+        "name": "13.7"
+      },
+      "registry": {
+        "server": "index.docker.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 2,
+        "highCount": 27,
+        "lowCount": 0,
+        "mediumCount": 23,
+        "noneCount": 0,
+        "unknownCount": 203
+      },
+      "updateTimestamp": "2026-11-07T19:19:49Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "",
+          "installedVersion": "2.12.7+dfsg+really2.9.14-2.1+deb13u3",
+          "lastModifiedDate": "2026-10-25T23:10:00Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/libxml2@2.12.7%2Bdfsg%2Breally2.9.14-2.1%2Bdeb13u3?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-6653",
+          "publishedDate": "2026-06-22T14:17:51Z",
+          "resource": "libxml2",
+          "score": 5.9,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "libxml2: mingw-libxml2: libxml2: Denial of Service via crafted XML input due to use-after-free",
+          "vulnerabilityID": "CVE-2026-6653"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "2.4.7-21+deb13u1+b5",
+          "lastModifiedDate": "2026-07-15T02:18:52Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/dirmngr@2.4.7-21%2Bdeb13u1%2Bb5?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-24882",
+          "publishedDate": "2026-01-27T19:16:16Z",
+          "resource": "dirmngr",
+          "score": 8.4,
+          "severity": "HIGH",
+          "target": "",
+          "title": "GnuPG: GnuPG: Stack-based buffer overflow in tpm2daemon allows arbitrary code execution",
+          "vulnerabilityID": "CVE-2026-24882"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "1:2.41.5-0+deb13u1",
+          "lastModifiedDate": "2026-11-06T19:17:49Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-3184",
+          "publishedDate": "2026-04-03T19:17:23Z",
+          "resource": "bsdutils",
+          "score": 3.7,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "util-linux: util-linux: Access control bypass due to improper hostname canonicalization",
+          "vulnerabilityID": "CVE-2026-3184"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "1:2.41.5-0+deb13u1",
+          "lastModifiedDate": "2026-09-24T20:28:01Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-76642",
+          "publishedDate": "2026-09-03T13:06:08Z",
+          "resource": "bsdutils",
+          "score": 7.8,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "util-linux: util-linux: failed external mount helper still runs privileged X-mount post-hooks",
+          "vulnerabilityID": "CVE-2026-76642"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:03:18Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "7cc694767b",
+        "trivy-operator.container.name": "postgres",
+        "trivy-operator.resource.kind": "Pod",
+        "trivy-operator.resource.name": "demo-postgres-1",
+        "trivy-operator.resource.namespace": "team-c"
+      },
+      "name": "pod-demo-postgres-1-postgres",
+      "namespace": "team-c",
+      "ownerReferences": [
+        {
+          "apiVersion": "v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "Pod",
+          "name": "demo-postgres-1",
+          "uid": "86966d00-c630-9566-e013-5594efd31277"
+        }
+      ],
+      "resourceVersion": "810885635",
+      "uid": "5c16083b-47ce-eb63-96a6-ecdf52ebeeaa"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:04e4a8ec7ddbe607720bb17ffbd8835492ae843b3cfffe7adbce21f92d4b4512",
+        "repository": "example/database",
+        "tag": "18-system-trixie"
+      },
+      "os": {
+        "family": "debian",
+        "name": "13.7"
+      },
+      "registry": {
+        "server": "ghcr.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 1,
+        "highCount": 32,
+        "lowCount": 0,
+        "mediumCount": 24,
+        "noneCount": 0,
+        "unknownCount": 229
+      },
+      "updateTimestamp": "2026-11-07T19:03:17Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "",
+          "installedVersion": "2.12.7+dfsg+really2.9.14-2.1+deb13u3",
+          "lastModifiedDate": "2026-10-25T23:10:00Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/libxml2@2.12.7%2Bdfsg%2Breally2.9.14-2.1%2Bdeb13u3?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-6653",
+          "publishedDate": "2026-06-22T14:17:51Z",
+          "resource": "libxml2",
+          "score": 9.8,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "libxml2: mingw-libxml2: libxml2: Denial of Service via crafted XML input due to use-after-free",
+          "vulnerabilityID": "CVE-2026-6653"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "2.4.7-21+deb13u1+b5",
+          "lastModifiedDate": "2026-07-15T02:18:52Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/dirmngr@2.4.7-21%2Bdeb13u1%2Bb5?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-24882",
+          "publishedDate": "2026-01-27T19:16:16Z",
+          "resource": "dirmngr",
+          "score": 8.4,
+          "severity": "HIGH",
+          "target": "",
+          "title": "GnuPG: GnuPG: Stack-based buffer overflow in tpm2daemon allows arbitrary code execution",
+          "vulnerabilityID": "CVE-2026-24882"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "1:2.41.5-0+deb13u1",
+          "lastModifiedDate": "2026-11-06T19:17:49Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-3184",
+          "publishedDate": "2026-04-03T19:17:23Z",
+          "resource": "bsdutils",
+          "score": 3.7,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "util-linux: util-linux: Access control bypass due to improper hostname canonicalization",
+          "vulnerabilityID": "CVE-2026-3184"
+        },
+        {
+          "fixedVersion": "3.0.4",
+          "installedVersion": "3.0.3",
+          "lastModifiedDate": "2026-11-05T05:18:19Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/apt@3.0.3?arch=amd64&distro=debian-13.7",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-109518",
+          "publishedDate": "2026-11-04T16:17:33Z",
+          "resource": "apt",
+          "score": 8.1,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "apt: apt: Remote code execution via hard link reuse during package download retries",
+          "vulnerabilityID": "CVE-2026-109518"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:05:47Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "7964c9dd76",
+        "trivy-operator.container.name": "node-agent",
+        "trivy-operator.resource.kind": "DaemonSet",
+        "trivy-operator.resource.name": "demo-node-agent",
+        "trivy-operator.resource.namespace": "kube-system"
+      },
+      "name": "daemonset-demo-node-agent-kube-vip",
+      "namespace": "kube-system",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "DaemonSet",
+          "name": "demo-node-agent",
+          "uid": "5e5aa5fc-0a49-137d-c80b-4506f042d249"
+        }
+      ],
+      "resourceVersion": "810889585",
+      "uid": "8ec90859-cc64-e270-0f7f-76ee92577633"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:a63cda866e450a9401c79bc0ceb6e99fa7b0a3b1cc4b82a2f28482a19d6d5558",
+        "repository": "example/node-agent",
+        "tag": "v1.2.4"
+      },
+      "os": {
+        "family": ""
+      },
+      "registry": {
+        "server": "ghcr.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 0,
+        "highCount": 0,
+        "lowCount": 0,
+        "mediumCount": 0,
+        "noneCount": 0,
+        "unknownCount": 22
+      },
+      "updateTimestamp": "2026-11-07T19:05:47Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "0.56.0",
+          "installedVersion": "v0.55.0",
+          "lastModifiedDate": "2026-09-04T16:34:56Z",
+          "links": [],
+          "packagePURL": "pkg:golang/golang.org/x/crypto@v0.55.0",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-56855",
+          "publishedDate": "2026-09-02T20:17:36Z",
+          "resource": "golang.org/x/crypto",
+          "score": 5.3,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Denial of Service via crafted messages",
+          "vulnerabilityID": "CVE-2026-56855"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:19:37Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "56db47776d",
+        "trivy-operator.container.name": "demo-web",
+        "trivy-operator.resource.kind": "ReplicaSet",
+        "trivy-operator.resource.name": "demo-web-5c558b58bf",
+        "trivy-operator.resource.namespace": "team-b"
+      },
+      "name": "replicaset-demo-web-5c558b58bf-demo-web",
+      "namespace": "team-b",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "demo-web-5c558b58bf",
+          "uid": "aca25118-e633-5b8f-96ee-6e10b8eb9565"
+        }
+      ],
+      "resourceVersion": "810911956",
+      "uid": "3fbdae27-c257-1561-f1ff-84d5f2b43aef"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:803afabdaf21cad6cfdc7052e2c2ab72f91fd51cea59ce82840603c7698a3998",
+        "repository": "example/demo-web",
+        "tag": "0.9"
+      },
+      "os": {
+        "family": "ubuntu",
+        "name": "24.04"
+      },
+      "registry": {
+        "server": "index.docker.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 18,
+        "highCount": 21,
+        "lowCount": 0,
+        "mediumCount": 899,
+        "noneCount": 0,
+        "unknownCount": 0
+      },
+      "updateTimestamp": "2026-11-07T19:19:37Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "8.3.6-0ubuntu0.24.04.13",
+          "installedVersion": "8.3.6-0ubuntu0.24.04.10",
+          "lastModifiedDate": "2026-11-05T19:17:07Z",
+          "links": [],
+          "packagePURL": "pkg:deb/ubuntu/php8.3-cli@8.3.6-0ubuntu0.24.04.10?arch=amd64&distro=ubuntu-24.04",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-109618",
+          "publishedDate": "2026-10-21T14:17:09Z",
+          "resource": "php8.3-cli",
+          "score": 8.1,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "php: OOM bailout during request parsing leads to memory corruption and RCE",
+          "vulnerabilityID": "CVE-2026-109618"
+        },
+        {
+          "fixedVersion": "2.8.4ubuntu0.1",
+          "installedVersion": "2.8.3",
+          "lastModifiedDate": "2026-11-05T05:18:19Z",
+          "links": [],
+          "packagePURL": "pkg:deb/ubuntu/apt@2.8.3?arch=amd64&distro=ubuntu-24.04",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-109518",
+          "publishedDate": "2026-11-04T16:17:33Z",
+          "resource": "apt",
+          "score": 8.1,
+          "severity": "HIGH",
+          "target": "",
+          "title": "apt: apt: Remote code execution via hard link reuse during package download retries",
+          "vulnerabilityID": "CVE-2026-109518"
+        },
+        {
+          "fixedVersion": "2.39.3-9ubuntu6.6",
+          "installedVersion": "1:2.39.3-9ubuntu6.5",
+          "lastModifiedDate": "2026-11-06T08:17:21Z",
+          "links": [],
+          "packagePURL": "pkg:deb/ubuntu/bsdutils@2.39.3-9ubuntu6.5?arch=amd64&distro=ubuntu-24.04&epoch=1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-13595",
+          "publishedDate": "2026-06-29T09:16:28Z",
+          "resource": "bsdutils",
+          "score": 5.3,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "util-linux: util-linux: heap use-after-free in libblkid nested partition probing",
+          "vulnerabilityID": "CVE-2026-13595"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:38:34Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "787b976c88",
+        "trivy-operator.container.name": "demo-indexer",
+        "trivy-operator.resource.kind": "ReplicaSet",
+        "trivy-operator.resource.name": "demo-indexer-59f9766cd6",
+        "trivy-operator.resource.namespace": "team-b"
+      },
+      "name": "replicaset-demo-indexer-59f9766cd6-demo-indexer",
+      "namespace": "team-b",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "ReplicaSet",
+          "name": "demo-indexer-59f9766cd6",
+          "uid": "7aa588a2-56a6-2751-cb6e-1143709d0c70"
+        }
+      ],
+      "resourceVersion": "810942868",
+      "uid": "c3cf870d-f1fa-233e-6301-286dbff3f567"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:8e9401399216c557473c5ae7c8203d90a28ec043cf0ad07c5aa245b3c311b434",
+        "repository": "example/demo-indexer",
+        "tag": "version-1.2.3.4"
+      },
+      "os": {
+        "family": "alpine",
+        "name": "3.24.2"
+      },
+      "registry": {
+        "server": "lscr.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 11,
+        "highCount": 126,
+        "lowCount": 0,
+        "mediumCount": 42,
+        "noneCount": 0,
+        "unknownCount": 7
+      },
+      "updateTimestamp": "2026-11-07T19:38:34Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "1.2.1-r0",
+          "installedVersion": "1.2.0-r1",
+          "lastModifiedDate": "2026-11-06T16:17:37Z",
+          "links": [],
+          "packagePURL": "pkg:apk/alpine/brotli-libs@1.2.0-r1?arch=x86_64&distro=3.24.2",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-111497",
+          "publishedDate": "2026-10-22T14:17:37Z",
+          "resource": "brotli-libs",
+          "score": 9.8,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "brotli: Out-of-Bounds Write in Google Brotli Decoder",
+          "vulnerabilityID": "CVE-2026-111497"
+        },
+        {
+          "fixedVersion": "9.0.21, 10.0.13, 8.0.32",
+          "installedVersion": "8.0.27",
+          "lastModifiedDate": "2026-10-14T04:18:32Z",
+          "links": [],
+          "packagePURL": "pkg:nuget/Microsoft.AspNetCore.App.Runtime.linux-musl-x64@8.0.27",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-70175",
+          "publishedDate": "2026-10-13T19:19:31Z",
+          "resource": "Microsoft.AspNetCore.App.Runtime.linux-musl-x64",
+          "score": 8.1,
+          "severity": "HIGH",
+          "target": "",
+          "title": "dotnet10.0: dotnet8.0: dotnet9.0: ASP.NET Core Elevation of Privilege Vulnerability",
+          "vulnerabilityID": "CVE-2026-70175"
+        },
+        {
+          "fixedVersion": "8.0.32, 10.0.13, 9.0.21",
+          "installedVersion": "8.0.27",
+          "lastModifiedDate": "2026-10-13T23:17:59Z",
+          "links": [],
+          "packagePURL": "pkg:nuget/Microsoft.AspNetCore.App.Runtime.linux-musl-x64@8.0.27",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-70196",
+          "publishedDate": "2026-10-13T19:19:33Z",
+          "resource": "Microsoft.AspNetCore.App.Runtime.linux-musl-x64",
+          "score": 5.9,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "dotnet9.0: dotnet8.0: dotnet10.0: ASP.NET Core Denial of Service Vulnerability",
+          "vulnerabilityID": "CVE-2026-70196"
+        },
+        {
+          "fixedVersion": "8.23.0-r0",
+          "installedVersion": "8.22.0-r0",
+          "lastModifiedDate": "2026-10-18T23:16:57Z",
+          "links": [],
+          "packagePURL": "pkg:apk/alpine/curl@8.22.0-r0?arch=x86_64&distro=3.24.2",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-92392",
+          "publishedDate": "2026-10-14T08:17:05Z",
+          "resource": "curl",
+          "score": 8.1,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "curl: curl: HTTP/2 upload Use-After-Free",
+          "vulnerabilityID": "CVE-2026-92392"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-08T14:32:07Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "577768667f",
+        "trivy-operator.container.name": "collector",
+        "trivy-operator.resource.kind": "Pod",
+        "trivy-operator.resource.name": "demo-collector-1794148200-4kf2z",
+        "trivy-operator.resource.namespace": "team-e"
+      },
+      "name": "pod-demo-collector-1794148200-4kf2z-collector",
+      "namespace": "team-e",
+      "ownerReferences": [
+        {
+          "apiVersion": "v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "Pod",
+          "name": "demo-collector-1794148200-4kf2z",
+          "uid": "a5b507e5-5e49-8c0d-9214-94adf4b3aadf"
+        }
+      ],
+      "resourceVersion": "812578552",
+      "uid": "dc689d46-405e-ba26-b3ac-6fd71bb89a34"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:289ee098d2fc26df4c5ba0fed1862f89b95fe49af8d360ab62ddb4faf8e89dc3",
+        "repository": "example/collector",
+        "tag": "master-collector"
+      },
+      "os": {
+        "family": "debian",
+        "name": "12.13"
+      },
+      "registry": {
+        "server": "ghcr.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 23,
+        "highCount": 55,
+        "lowCount": 0,
+        "mediumCount": 46,
+        "noneCount": 0,
+        "unknownCount": 308
+      },
+      "updateTimestamp": "2026-11-08T14:32:07Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "4.96-15+deb12u9",
+          "installedVersion": "4.96-15+deb12u7",
+          "lastModifiedDate": "2026-06-17T10:45:34Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/exim4-base@4.96-15%2Bdeb12u7?arch=amd64&distro=debian-12.13",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-40685",
+          "publishedDate": "2026-04-30T22:16:25Z",
+          "resource": "exim4-base",
+          "score": 9.8,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "In Exim before 4.99.2, when JSON lookup is enabled, an out-of-bounds h ...",
+          "vulnerabilityID": "CVE-2026-40685"
+        },
+        {
+          "fixedVersion": "4.96-15+deb12u9",
+          "installedVersion": "4.96-15+deb12u7",
+          "lastModifiedDate": "2026-06-17T10:45:34Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/exim4-base@4.96-15%2Bdeb12u7?arch=amd64&distro=debian-12.13",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-40684",
+          "publishedDate": "2026-04-30T22:16:25Z",
+          "resource": "exim4-base",
+          "score": 7.5,
+          "severity": "HIGH",
+          "target": "",
+          "title": "In Exim before 4.99.2, on systems using musl libc (not glibc), an atta ...",
+          "vulnerabilityID": "CVE-2026-40684"
+        },
+        {
+          "fixedVersion": "",
+          "installedVersion": "1:2.38.1-5+deb12u3",
+          "lastModifiedDate": "2026-11-06T08:17:21Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/bsdutils@2.38.1-5%2Bdeb12u3?arch=amd64&distro=debian-12.13&epoch=1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-13595",
+          "publishedDate": "2026-06-29T09:16:28Z",
+          "resource": "bsdutils",
+          "score": 6.8,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "util-linux: util-linux: heap use-after-free in libblkid nested partition probing",
+          "vulnerabilityID": "CVE-2026-13595"
+        },
+        {
+          "fixedVersion": "2.6.2",
+          "installedVersion": "2.6.1",
+          "lastModifiedDate": "2026-11-05T05:18:19Z",
+          "links": [],
+          "packagePURL": "pkg:deb/debian/apt@2.6.1?arch=amd64&distro=debian-12.13",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-109518",
+          "publishedDate": "2026-11-04T16:17:33Z",
+          "resource": "apt",
+          "score": 8.1,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "apt: apt: Remote code execution via hard link reuse during package download retries",
+          "vulnerabilityID": "CVE-2026-109518"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T14:52:33Z",
+      "generation": 2,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "6f87c69575",
+        "trivy-operator.container.name": "config-reloader",
+        "trivy-operator.resource.kind": "StatefulSet",
+        "trivy-operator.resource.name": "prometheus-prometheus-prometheus",
+        "trivy-operator.resource.namespace": "team-e"
+      },
+      "name": "statefulset-prometheus-prometheus-prometheus-config-reloader",
+      "namespace": "team-e",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "StatefulSet",
+          "name": "prometheus-prometheus-prometheus",
+          "uid": "9eff0530-103b-944b-26ee-78f3eda76be4"
+        }
+      ],
+      "resourceVersion": "810883030",
+      "uid": "b11bfd9c-b4ef-3b26-9a0c-2a88a95ae904"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:822f70546f80406421ad21c5d6acfa57ef527db7c93afc547f0be7a9d5900117",
+        "repository": "prometheus-operator/prometheus-config-reloader",
+        "tag": "v0.87.1"
+      },
+      "os": {
+        "family": ""
+      },
+      "registry": {
+        "server": "quay.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 1,
+        "highCount": 10,
+        "lowCount": 0,
+        "mediumCount": 6,
+        "noneCount": 0,
+        "unknownCount": 69
+      },
+      "updateTimestamp": "2026-11-07T19:01:44Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "1.24.13, 1.25.7, 1.26.0-rc.3",
+          "installedVersion": "v1.24.11",
+          "lastModifiedDate": "2026-06-17T09:58:33Z",
+          "links": [],
+          "packagePURL": "pkg:golang/stdlib@v1.24.11",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2025-68121",
+          "publishedDate": "2026-02-05T18:16:10Z",
+          "resource": "stdlib",
+          "score": 9.1,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "crypto/tls: crypto/tls: Incorrect certificate validation during TLS session resumption",
+          "vulnerabilityID": "CVE-2025-68121"
+        },
+        {
+          "fixedVersion": "0.311.3",
+          "installedVersion": "v0.307.3",
+          "lastModifiedDate": "2026-09-10T13:20:06Z",
+          "links": [],
+          "packagePURL": "pkg:golang/github.com/prometheus/prometheus@v0.307.3",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-42151",
+          "publishedDate": "2026-05-04T19:16:04Z",
+          "resource": "github.com/prometheus/prometheus",
+          "score": 7.5,
+          "severity": "HIGH",
+          "target": "",
+          "title": "github.com/prometheus/prometheus: Prometheus: Information disclosure of Azure OAuth client secret via config API",
+          "vulnerabilityID": "CVE-2026-42151"
+        },
+        {
+          "fixedVersion": "3.5.2, 3.11.2, 0.311.2-0.20260410083055-07c6232d159b",
+          "installedVersion": "v0.307.3",
+          "lastModifiedDate": "2026-06-17T10:44:49Z",
+          "links": [],
+          "packagePURL": "pkg:golang/github.com/prometheus/prometheus@v0.307.3",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-40179",
+          "publishedDate": "2026-04-15T23:16:09Z",
+          "resource": "github.com/prometheus/prometheus",
+          "score": 6.1,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "Prometheus has Stored XSS via metric names and label values in Prometheus web UI tooltips and metrics explorer",
+          "vulnerabilityID": "CVE-2026-40179"
+        },
+        {
+          "fixedVersion": "0.52.0",
+          "installedVersion": "v0.44.0",
+          "lastModifiedDate": "2026-09-11T13:17:51Z",
+          "links": [],
+          "packagePURL": "pkg:golang/golang.org/x/crypto@v0.44.0",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-39828",
+          "publishedDate": "2026-05-22T04:16:22Z",
+          "resource": "golang.org/x/crypto",
+          "score": 8.8,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Unauthorized command execution via discarded SSH permissions",
+          "vulnerabilityID": "CVE-2026-39828"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:01:37Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "74c59df874",
+        "trivy-operator.container.name": "demo-health-check",
+        "trivy-operator.resource.kind": "CronJob",
+        "trivy-operator.resource.name": "demo-health-check",
+        "trivy-operator.resource.namespace": "team-d"
+      },
+      "name": "cronjob-demo-health-check-demo-health-check",
+      "namespace": "team-d",
+      "ownerReferences": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "CronJob",
+          "name": "demo-health-check",
+          "uid": "ea695055-9af0-6f75-089f-b407bb0baef3"
+        }
+      ],
+      "resourceVersion": "810882794",
+      "uid": "bca60211-de3a-41f9-fe8e-7187297fe095"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:63f608a9005c9479b1b6590cd130427ab04252c8f18599372b0e5644f4e69d3f",
+        "repository": "example/health-check",
+        "tag": "v19"
+      },
+      "os": {
+        "family": "centos-stream",
+        "name": "9"
+      },
+      "registry": {
+        "server": "quay.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 0,
+        "highCount": 2,
+        "lowCount": 0,
+        "mediumCount": 2,
+        "noneCount": 0,
+        "unknownCount": 0
+      },
+      "updateTimestamp": "2026-11-07T19:01:37Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "70.0.0",
+          "installedVersion": "69.2.0",
+          "lastModifiedDate": "2026-06-17T08:17:49Z",
+          "links": [],
+          "packagePURL": "pkg:pypi/setuptools@69.2.0",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2024-6345",
+          "publishedDate": "2024-07-15T01:15:01Z",
+          "resource": "setuptools",
+          "score": 8.8,
+          "severity": "HIGH",
+          "target": "",
+          "title": "pypa/setuptools: Remote code execution via download functions in the package_index module in pypa/setuptools",
+          "vulnerabilityID": "CVE-2024-6345"
+        },
+        {
+          "fixedVersion": "1.5.0",
+          "installedVersion": "1.4.1.post1",
+          "lastModifiedDate": "2026-06-17T08:15:24Z",
+          "links": [],
+          "packagePURL": "pkg:pypi/scikit-learn@1.4.1.post1",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2024-5206",
+          "publishedDate": "2024-06-06T19:16:06Z",
+          "resource": "scikit-learn",
+          "score": 5.3,
+          "severity": "MEDIUM",
+          "target": "",
+          "title": "scikit-learn: Possible sensitive data leak",
+          "vulnerabilityID": "CVE-2024-5206"
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "aquasecurity.github.io/v1alpha1",
+    "kind": "VulnerabilityReport",
+    "metadata": {
+      "annotations": {
+        "trivy-operator.aquasecurity.github.io/report-ttl": "24h0m0s"
+      },
+      "creationTimestamp": "2026-11-07T19:03:21Z",
+      "generation": 1,
+      "labels": {
+        "app.kubernetes.io/managed-by": "trivy-operator",
+        "resource-spec-hash": "7ddf94684f",
+        "trivy-operator.container.name": "trivy-server",
+        "trivy-operator.resource.kind": "StatefulSet",
+        "trivy-operator.resource.name": "trivy-server",
+        "trivy-operator.resource.namespace": "trivy-system"
+      },
+      "name": "statefulset-trivy-server-trivy-server",
+      "namespace": "trivy-system",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "blockOwnerDeletion": false,
+          "controller": true,
+          "kind": "StatefulSet",
+          "name": "trivy-server",
+          "uid": "8ed262ff-6c77-63e2-41ce-a57184cbeb62"
+        }
+      ],
+      "resourceVersion": "810885722",
+      "uid": "137c6b76-5d25-7465-e516-a52bac5c48c6"
+    },
+    "report": {
+      "artifact": {
+        "digest": "sha256:7b5c0f2044a6b0af357d1187deac2aef9f633ae7e44103e90ce79de98580bee5",
+        "repository": "aquasec/trivy",
+        "tag": "0.76.1"
+      },
+      "os": {
+        "family": "alpine",
+        "name": "3.24.2"
+      },
+      "registry": {
+        "server": "mirror.gcr.io"
+      },
+      "scanner": {
+        "name": "Trivy",
+        "vendor": "Aqua Security",
+        "version": "0.76.1"
+      },
+      "summary": {
+        "criticalCount": 1,
+        "highCount": 4,
+        "lowCount": 0,
+        "mediumCount": 0,
+        "noneCount": 0,
+        "unknownCount": 8
+      },
+      "updateTimestamp": "2026-11-07T19:03:21Z",
+      "vulnerabilities": [
+        {
+          "fixedVersion": "1.2.1-r0",
+          "installedVersion": "1.2.0-r1",
+          "lastModifiedDate": "2026-11-06T16:17:37Z",
+          "links": [],
+          "packagePURL": "pkg:apk/alpine/brotli-libs@1.2.0-r1?arch=x86_64&distro=3.24.2",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-111497",
+          "publishedDate": "2026-10-22T14:17:37Z",
+          "resource": "brotli-libs",
+          "score": 9.8,
+          "severity": "CRITICAL",
+          "target": "",
+          "title": "brotli: Out-of-Bounds Write in Google Brotli Decoder",
+          "vulnerabilityID": "CVE-2026-111497"
+        },
+        {
+          "fixedVersion": "2.10.0-r0",
+          "installedVersion": "2.9.0-r0",
+          "lastModifiedDate": "2026-11-03T21:26:47Z",
+          "links": [],
+          "packagePURL": "pkg:apk/alpine/libexpat@2.9.0-r0?arch=x86_64&distro=3.24.2",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-113351",
+          "publishedDate": "2026-10-20T11:17:19Z",
+          "resource": "libexpat",
+          "score": 5.9,
+          "severity": "HIGH",
+          "target": "",
+          "title": "expat: expat: Denial of Service via improper memory tracking in XML_ParserReset",
+          "vulnerabilityID": "CVE-2026-113351"
+        },
+        {
+          "fixedVersion": "8.23.0-r0",
+          "installedVersion": "8.22.0-r0",
+          "lastModifiedDate": "2026-10-18T23:16:57Z",
+          "links": [],
+          "packagePURL": "pkg:apk/alpine/libcurl@8.22.0-r0?arch=x86_64&distro=3.24.2",
+          "primaryLink": "https://avd.aquasec.com/nvd/cve-2026-92392",
+          "publishedDate": "2026-10-14T08:17:05Z",
+          "resource": "libcurl",
+          "score": 8.1,
+          "severity": "UNKNOWN",
+          "target": "",
+          "title": "curl: curl: HTTP/2 upload Use-After-Free",
+          "vulnerabilityID": "CVE-2026-92392"
+        }
+      ]
+    }
+  }
+]

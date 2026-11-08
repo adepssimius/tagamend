@@ -1,0 +1,221 @@
+[
+  {
+    "apiVersion": "apps/v1",
+    "kind": "ReplicaSet",
+    "metadata": {
+      "name": "demo-api-7c4967f8db",
+      "namespace": "team-a",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "name": "demo-api",
+          "controller": true
+        }
+      ]
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "demo-api",
+      "namespace": "team-a"
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "ReplicaSet",
+    "metadata": {
+      "name": "demo-web-5c558b58bf",
+      "namespace": "team-b",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "name": "demo-web",
+          "controller": true
+        }
+      ]
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "demo-web",
+      "namespace": "team-b"
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "ReplicaSet",
+    "metadata": {
+      "name": "demo-indexer-59f9766cd6",
+      "namespace": "team-b",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "name": "demo-indexer",
+          "controller": true
+        }
+      ]
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "demo-indexer",
+      "namespace": "team-b"
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "batch/v1",
+    "kind": "CronJob",
+    "metadata": {
+      "name": "demo-health-check",
+      "namespace": "team-d"
+    }
+  },
+  {
+    "apiVersion": "batch/v1",
+    "kind": "Job",
+    "metadata": {
+      "name": "demo-db-init",
+      "namespace": "team-c"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "DaemonSet",
+    "metadata": {
+      "name": "demo-node-agent",
+      "namespace": "kube-system"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "StatefulSet",
+    "metadata": {
+      "name": "trivy-server",
+      "namespace": "trivy-system"
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "StatefulSet",
+    "metadata": {
+      "name": "prometheus-prometheus-prometheus",
+      "namespace": "team-e",
+      "ownerReferences": [
+        {
+          "apiVersion": "monitoring.coreos.com/v1",
+          "kind": "Prometheus",
+          "name": "prometheus-prometheus",
+          "controller": true
+        }
+      ]
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "monitoring.coreos.com/v1",
+    "kind": "Prometheus",
+    "metadata": {
+      "name": "prometheus-prometheus",
+      "namespace": "team-e"
+    },
+    "spec": {
+      "replicas": 1
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "demo-postgres-1",
+      "namespace": "team-c",
+      "ownerReferences": [
+        {
+          "apiVersion": "postgresql.cnpg.io/v1",
+          "kind": "Cluster",
+          "name": "demo-postgres",
+          "controller": true
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "postgresql.cnpg.io/v1",
+    "kind": "Cluster",
+    "metadata": {
+      "name": "demo-postgres",
+      "namespace": "team-c"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "demo-collector-1794148200-4kf2z",
+      "namespace": "team-e",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps.kruise.io/v1alpha1",
+          "kind": "BroadcastJob",
+          "name": "demo-collector-1794148200",
+          "controller": true
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "apps.kruise.io/v1alpha1",
+    "kind": "BroadcastJob",
+    "metadata": {
+      "name": "demo-collector-1794148200",
+      "namespace": "team-e",
+      "ownerReferences": [
+        {
+          "apiVersion": "apps.kruise.io/v1alpha1",
+          "kind": "AdvancedCronJob",
+          "name": "demo-collector",
+          "controller": true
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "apps.kruise.io/v1alpha1",
+    "kind": "AdvancedCronJob",
+    "metadata": {
+      "name": "demo-collector",
+      "namespace": "team-e"
+    }
+  }
+]

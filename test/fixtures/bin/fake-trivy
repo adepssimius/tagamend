@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stands in for trivy in the local runner tests. Prints its arguments and the
+# credentials it was given to stderr, the file named by FAKE_TRIVY_OUTPUT to
+# stdout, and exits with FAKE_TRIVY_EXIT.
+echo "args: $*" >&2
+echo "user: ${TRIVY_USERNAME:-none}" >&2
+if [ -n "$FAKE_TRIVY_SLEEP" ]; then sleep "$FAKE_TRIVY_SLEEP"; fi
+if [ -n "$FAKE_TRIVY_OUTPUT" ]; then cat "$FAKE_TRIVY_OUTPUT"; fi
+exit "${FAKE_TRIVY_EXIT:-0}"
