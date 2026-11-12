@@ -65,6 +65,24 @@ Scan Jobs cannot read the worker's files, so they take credentials from
 Secrets in `SCAN_NAMESPACE`, named by `SCAN_REGISTRY_SECRETS`
 (`host=secret/usernameKey/passwordKey;...`).
 
+## GitOps pull requests
+
+With `GITOPS_REPO` set, each scanned candidate on an image page gets an
+**Open PR** button. The worker downloads the base branch once as a tarball,
+finds the image's references, commits the tag change to a new branch, and
+opens a PR whose body carries the candidate scan's diff.
+
+It moves references in three forms: `image: <ref>` lines, Helm values with
+`repository:` and `tag:` keys, and Kustomize `images:` entries with `newTag:`.
+It moves only tags that are running now and have the same shape as the
+candidate, and leaves alone lines Flux image automation manages and digest
+pins, listing them in the PR. An image that the repo does not name, such as
+one from a Helm chart's defaults, fails with that reason instead of opening an
+empty PR.
+
+The worker needs `GITHUB_TOKEN`: a fine-grained PAT limited to that repository,
+with Contents and Pull requests read and write. The web process never sees it.
+
 ## Configuration
 
 See `src/lib/config.ts` for every variable and its default, and `.env.example`.

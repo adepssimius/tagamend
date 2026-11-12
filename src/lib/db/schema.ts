@@ -12,7 +12,8 @@ type Bool = number;
 
 export type DigestSource = "operator" | "candidate";
 export type ScanStatus = "queued" | "running" | "done" | "failed";
-export type SyncName = "report_sync" | "tag_sync" | "scan_queue";
+export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue";
+export type PullRequestStatus = "queued" | "running" | "opened" | "failed";
 
 export interface ImagesTable {
   id: Generated<number>;
@@ -108,6 +109,29 @@ export interface SyncRunsTable {
   detail: string | null;
 }
 
+/** A request to open a GitOps PR that moves an image to a candidate tag. */
+export interface PullRequestsTable {
+  id: Generated<number>;
+  image_id: number;
+  /** The done candidate scan the PR is based on; its diff goes in the PR body. */
+  scan_id: number;
+  to_tag: string;
+  to_digest: string;
+  status: PullRequestStatus;
+  requested_by: string | null;
+  requested_at: Timestamp;
+  started_at: Timestamp | null;
+  finished_at: Timestamp | null;
+  branch: string | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  /** JSON text: the edits made, [{path, line, before, after}]. */
+  edits: string | null;
+  /** JSON text: references found but left alone, [{path, line, reason}]. */
+  skipped: string | null;
+  error: string | null;
+}
+
 /** Small key/value facts, such as the Trivy server version. */
 export interface KvTable {
   key: string;
@@ -123,6 +147,7 @@ export interface Database {
   tags: TagsTable;
   scans: ScansTable;
   sync_runs: SyncRunsTable;
+  pull_requests: PullRequestsTable;
   kv: KvTable;
 }
 
@@ -135,6 +160,7 @@ export type Tag = Selectable<TagsTable>;
 export type Scan = Selectable<ScansTable>;
 export type ScanUpdate = Updateable<ScansTable>;
 export type SyncRun = Selectable<SyncRunsTable>;
+export type PullRequest = Selectable<PullRequestsTable>;
 
 // Silence "unused" for ColumnType in case a later table needs it.
 export type _Unused = ColumnType<never>;

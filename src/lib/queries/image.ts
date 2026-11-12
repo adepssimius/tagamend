@@ -1,5 +1,5 @@
 import type { DB } from "../db";
-import type { Image, ImageDigest, Scan, Tag, Vulnerability, Workload } from "../db/schema";
+import type { Image, ImageDigest, PullRequest, Scan, Tag, Vulnerability, Workload } from "../db/schema";
 import {
   bySeverity,
   type DiffCounts,
@@ -19,6 +19,8 @@ export interface ImageVulnRow extends Vulnerability {
 export interface ImageTagRow extends Tag {
   scan: Scan | null;
   diff: DiffCounts | null;
+  /** The newest GitOps PR request for this tag. */
+  pr: PullRequest | null;
 }
 
 export interface ImagePage {
@@ -52,7 +54,7 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
   const running = runningDigestsByImage(live);
   const runningIds = running.get(imageId) ?? [];
 
-  const [runningDigests, rawVulns, tags, scansByDigest, recent] = await Promise.all([
+  const [runningDigests, rawVulns, tags, scansByDigest, recent, prs] = await Promise.all([
     runningIds.length
       ? db.selectFrom("image_digests").selectAll().where("id", "in", runningIds).orderBy("id").execute()
       : Promise.resolve([]),
@@ -60,7 +62,10 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
     db.selectFrom("tags").selectAll().where("image_id", "=", imageId).execute(),
     latestScansByDigest(db, [imageId]),
     db.selectFrom("scans").selectAll().where("image_id", "=", imageId).orderBy("id", "desc").limit(20).execute(),
+    db.selectFrom("pull_requests").selectAll().where("image_id", "=", imageId).orderBy("id", "desc").execute(),
   ]);
+  const prByTag = new Map<string, PullRequest>();
+  for (const p of prs) if (!prByTag.has(p.to_tag)) prByTag.set(p.to_tag, p);
 
   // One row per (vuln_id, package, installed_version, fixed_version) across the running digests.
   const grouped = new Map<string, ImageVulnRow>();
@@ -88,7 +93,7 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
     tags: sortTags(
       tags.map((t, i) => {
         const scan = tagScans[i] ?? null;
-        return { ...t, scan, diff: scan ? (summaries.get(scan.id) ?? null) : null };
+        return { ...t, scan, diff: scan ? (summaries.get(scan.id) ?? null) : null, pr: prByTag.get(t.tag) ?? null };
       }),
     ),
     pinnedByDigest: live.length > 0 && live.every((w) => w.tag == null),

@@ -23,6 +23,7 @@ const LOOP_NAMES: Record<SyncName, string> = {
   report_sync: "Report sync",
   tag_sync: "Tag discovery",
   scan_queue: "Scan queue",
+  pr_queue: "PR queue",
 };
 
 const warnClass = "font-semibold text-amber-700 dark:text-amber-300";
@@ -41,7 +42,7 @@ export default async function StatusPage() {
       <h1 className="text-lg font-semibold">Status</h1>
 
       <Section title="Background loops">
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {LOOPS.map((name) => {
             const runs = page.runs[name];
             const latest = runs[0];
@@ -128,6 +129,53 @@ export default async function StatusPage() {
                   </td>
                   <td className="text-xs">{s.requested_by ?? "—"}</td>
                   <td className="font-mono text-xs">{s.job_name ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Section>
+
+      <Section title="Pull requests" count={page.pullRequests.length}>
+        {page.pullRequests.length === 0 ? (
+          <Empty>None requested yet.</Empty>
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th>Image</th>
+                <th>To tag</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>By</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {page.pullRequests.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <Link href={`/images/${p.image_id}`} className="hover:underline">
+                      <ImageName registry={p.registry} repository={p.repository} />
+                    </Link>
+                  </td>
+                  <td className="font-mono text-xs">{p.to_tag}</td>
+                  <td className="text-xs">{p.status}</td>
+                  <td>
+                    <Ago iso={p.requested_at} />
+                  </td>
+                  <td className="text-xs">{p.requested_by ?? "—"}</td>
+                  <td className="text-xs">
+                    {p.pr_url ? (
+                      <a href={p.pr_url} className={linkClass} target="_blank" rel="noreferrer">
+                        PR #{p.pr_number}
+                      </a>
+                    ) : p.error ? (
+                      <ErrorText>{p.error}</ErrorText>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

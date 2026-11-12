@@ -58,6 +58,17 @@ const schema = z.object({
       }
       return out;
     }),
+  // GitOps PRs. With GITOPS_REPO unset the feature is off and the web hides it.
+  // The token is read by the worker only.
+  GITOPS_REPO: z
+    .string()
+    .regex(/^[\w.-]+\/[\w.-]+$/, "expected owner/name")
+    .optional(),
+  GITOPS_BRANCH: z.string().default("main"),
+  GITHUB_TOKEN: z.string().optional(),
+  // Base URL of this app, for links in PR bodies. Falls back to AUTH_URL.
+  APP_URL: z.string().url().optional(),
+  AUTH_URL: z.string().url().optional(),
   OIDC_ISSUER: z.string().url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
   OIDC_CLIENT_SECRET: z.string().optional(),

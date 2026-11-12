@@ -1,8 +1,8 @@
 import type { DB } from "../db";
-import type { Image, Scan, SyncName, SyncRun } from "../db/schema";
+import type { Image, PullRequest, Scan, SyncName, SyncRun } from "../db/schema";
 import { KV } from "../kv-keys";
 
-export const LOOPS: SyncName[] = ["report_sync", "tag_sync", "scan_queue"];
+export const LOOPS: SyncName[] = ["report_sync", "tag_sync", "scan_queue", "pr_queue"];
 
 export interface KvValue {
   value: string;
@@ -14,6 +14,7 @@ export interface StatusPage {
   active: (Scan & { registry: string; repository: string })[];
   failed: (Scan & { registry: string; repository: string })[];
   tagSyncErrors: Image[];
+  pullRequests: (PullRequest & { registry: string; repository: string })[];
   trivyReportVersion: KvValue | null;
   trivyServerVersion: KvValue | null;
 }
@@ -22,7 +23,7 @@ export async function getStatusPage(db: DB, runsPerLoop = 10): Promise<StatusPag
   const scansBase = () =>
     db.selectFrom("scans").innerJoin("images", "images.id", "scans.image_id").selectAll("scans").select(["images.registry", "images.repository"]);
 
-  const [runLists, active, failed, tagSyncErrors, kv] = await Promise.all([
+  const [runLists, active, failed, tagSyncErrors, kv, pullRequests] = await Promise.all([
     Promise.all(
       LOOPS.map((name) =>
         db.selectFrom("sync_runs").selectAll().where("name", "=", name).orderBy("id", "desc").limit(runsPerLoop).execute(),
@@ -32,6 +33,14 @@ export async function getStatusPage(db: DB, runsPerLoop = 10): Promise<StatusPag
     scansBase().where("scans.status", "=", "failed").orderBy("scans.id", "desc").limit(20).execute(),
     db.selectFrom("images").selectAll().where("tag_sync_error", "is not", null).orderBy("registry").orderBy("repository").execute(),
     db.selectFrom("kv").selectAll().where("key", "in", [KV.trivyReportVersion, KV.trivyServerVersion]).execute(),
+    db
+      .selectFrom("pull_requests")
+      .innerJoin("images", "images.id", "pull_requests.image_id")
+      .selectAll("pull_requests")
+      .select(["images.registry", "images.repository"])
+      .orderBy("pull_requests.id", "desc")
+      .limit(20)
+      .execute(),
   ]);
   const kvOf = (key: string) => {
     const r = kv.find((k) => k.key === key);
@@ -42,6 +51,7 @@ export async function getStatusPage(db: DB, runsPerLoop = 10): Promise<StatusPag
     active,
     failed,
     tagSyncErrors,
+    pullRequests,
     trivyReportVersion: kvOf(KV.trivyReportVersion),
     trivyServerVersion: kvOf(KV.trivyServerVersion),
   };

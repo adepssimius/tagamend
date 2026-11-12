@@ -16,9 +16,11 @@ import {
   ShortDigest,
   Table,
 } from "@/components/ui";
+import { getConfig } from "@/lib/config";
 import { getDb } from "@/lib/db";
+import type { PullRequest } from "@/lib/db/schema";
 import { getImagePage } from "@/lib/queries/image";
-import { scanTag } from "./actions";
+import { openPullRequest, scanTag } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   const imageId = Number(id);
   if (!Number.isInteger(imageId)) notFound();
   const page = await getImagePage(await getDb(), imageId);
+  const prsEnabled = !!getConfig().GITOPS_REPO;
   if (!page) notFound();
   const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, recentScans } = page;
   const candidates = tags.filter((t) => t.is_candidate);
@@ -110,6 +113,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                 <th>Digest</th>
                 <th>First seen</th>
                 <th>Scan</th>
+                {prsEnabled && <th>PR</th>}
               </tr>
             </thead>
             <tbody>
@@ -143,6 +147,11 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                     </div>
                     {t.scan?.status === "failed" && t.scan.error && <ErrorText>{t.scan.error}</ErrorText>}
                   </td>
+                  {prsEnabled && (
+                    <td>
+                      <PrCell pr={t.pr} scanId={t.scan?.status === "done" ? t.scan.id : null} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -263,6 +272,36 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
           </Table>
         </Section>
       )}
+    </div>
+  );
+}
+
+/** The PR state for one candidate, or the button that requests one once it is scanned. */
+function PrCell({ pr, scanId }: { pr: PullRequest | null; scanId: number | null }) {
+  if (pr?.status === "opened" && pr.pr_url) {
+    return (
+      <a href={pr.pr_url} className={`text-xs ${linkClass}`} target="_blank" rel="noreferrer">
+        PR #{pr.pr_number}
+      </a>
+    );
+  }
+  if (pr?.status === "queued" || pr?.status === "running") {
+    return <span className={`text-xs ${mutedClass}`}>{pr.status === "queued" ? "queued" : "opening…"}</span>;
+  }
+  const button = scanId ? (
+    <form action={openPullRequest}>
+      <input type="hidden" name="scanId" value={scanId} />
+      <SubmitButton pendingText="Queuing…">{pr?.status === "failed" ? "Retry PR" : "Open PR"}</SubmitButton>
+    </form>
+  ) : (
+    <span className={`text-xs ${mutedClass}`} title="Scan the candidate first; the PR carries its diff">
+      scan first
+    </span>
+  );
+  return (
+    <div>
+      {button}
+      {pr?.status === "failed" && pr.error && <ErrorText>{pr.error}</ErrorText>}
     </div>
   );
 }
