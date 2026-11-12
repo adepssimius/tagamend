@@ -3,6 +3,7 @@ import type { PullRequest } from "../db/schema";
 import { withSyncRun } from "../db/store";
 import { errorMessage } from "../log";
 import { liveWorkloads } from "../queries/common";
+import { kevFor } from "../queries/kev";
 import { getScanPage } from "../queries/scan";
 import type { WorkerContext } from "../worker-context";
 import { type GitHub, gitHubClient } from "./github";
@@ -116,6 +117,8 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
   // The title names the tags that actually moved, not every running tag.
   const movedFrom = [...new Set(edits.map((e) => e.fromTag))];
   const base = (config.APP_URL ?? config.AUTH_URL)?.replace(/\/$/, "");
+  const d = page.diff;
+  const kev = await kevFor(db, [...d.fixed, ...d.introduced, ...d.stillPresent.map((s) => s.running)].map((v) => v.vuln_id));
   const content = buildPrContent({
     repository: image.repository,
     registry: image.registry,
@@ -127,6 +130,7 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
     skipped,
     scanUrl: base ? `${base}/scans/${req.scan_id}` : null,
     requestedBy: req.requested_by,
+    exploited: new Set(kev.keys()),
   });
 
   let branch = branchName(image.repository, req.to_tag);

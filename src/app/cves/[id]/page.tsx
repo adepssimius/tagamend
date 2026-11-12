@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/auth";
 import {
   Empty,
+  ExploitedBadge,
   externalVulnUrl,
   ImageName,
   linkClass,
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { getCvePage } from "@/lib/queries/cve";
+import { kevFor } from "@/lib/queries/kev";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,9 @@ export default async function CvePage({ params }: { params: Promise<{ id: string
   await requireUser();
   const { id } = await params;
   const vulnId = safeDecode(id);
-  const { title, severity, score, link, affected, introducedBy } = await getCvePage(await getDb(), vulnId);
+  const db = await getDb();
+  const { title, severity, score, link, affected, introducedBy } = await getCvePage(db, vulnId);
+  const kev = (await kevFor(db, [vulnId])).get(vulnId);
 
   return (
     <div>
@@ -37,7 +41,17 @@ export default async function CvePage({ params }: { params: Promise<{ id: string
         {severity && <SeverityBadge severity={severity} />}
         <span className="font-mono">{vulnId}</span>
         {score != null && <span className={`text-sm font-normal ${mutedClass}`}>CVSS {score.toFixed(1)}</span>}
+        {kev && <ExploitedBadge kev={kev} />}
       </h1>
+      {kev && (
+        <div className="mt-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs dark:border-red-900 dark:bg-red-950/40">
+          <p className="font-medium text-red-800 dark:text-red-300">
+            Exploited in the wild: in CISA&apos;s Known Exploited Vulnerabilities catalog since {kev.date_added}
+            {kev.known_ransomware ? ", and known to be used in ransomware campaigns" : ""}.
+          </p>
+          {kev.short_description && <p className="mt-1 text-red-900/80 dark:text-red-200/80">{kev.short_description}</p>}
+        </div>
+      )}
       {title && <p className="mt-1 text-sm">{title}</p>}
       <p className="mt-1 text-xs">
         <a href={externalVulnUrl(vulnId, link)} target="_blank" rel="noreferrer noopener" className={linkClass}>

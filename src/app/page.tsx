@@ -69,7 +69,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </p>
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded border border-zinc-200 bg-zinc-200 text-sm sm:grid-cols-7 dark:border-zinc-800 dark:bg-zinc-800">
+      <dl className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded border border-zinc-200 bg-zinc-200 text-sm sm:grid-cols-8 dark:border-zinc-800 dark:bg-zinc-800">
         {(
           [
             ["Images", totals.images],
@@ -77,6 +77,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             ["Critical", <SeverityCount key="c" severity="CRITICAL" n={totals.critical} />],
             ["High", <SeverityCount key="h" severity="HIGH" n={totals.high} />],
             ["Medium", <SeverityCount key="m" severity="MEDIUM" n={totals.medium} />],
+            ["Known exploited", <Exploited key="k" n={totals.exploited} />],
             ["With a candidate", totals.withCandidate],
             ["Candidate scanned", totals.candidatesScanned],
           ] as const
@@ -150,6 +151,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                 <SortTh k="medium" className="text-right">
                   Med
                 </SortTh>
+                <SortTh k="exploited" className="text-right">
+                  <span title="CVEs in CISA's Known Exploited Vulnerabilities catalog">KEV</span>
+                </SortTh>
                 <SortTh k="candidate">Best candidate</SortTh>
               </tr>
             </thead>
@@ -182,6 +186,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                   </td>
                   <td className="text-right">
                     <SeverityCount severity="MEDIUM" n={r.medium} />
+                  </td>
+                  <td className="text-right">
+                    <Exploited n={r.exploited} />
                   </td>
                   <td>
                     {r.candidate ? (
@@ -236,5 +243,14 @@ function NoCandidate({ imageId, check }: { imageId: number; check: OverviewRow["
     <span className={`text-xs ${mutedClass}`}>
       {check.floating ? "no new digest" : "up to date"} · <Ago iso={check.checkedAt} />
     </span>
+  );
+}
+
+/** Count of known-exploited CVEs: red when any. */
+function Exploited({ n }: { n: number }) {
+  return n > 0 ? (
+    <span className="font-semibold tabular-nums text-red-700 dark:text-red-400">{n}</span>
+  ) : (
+    <span className="tabular-nums text-zinc-300 dark:text-zinc-700">0</span>
   );
 }

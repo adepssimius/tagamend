@@ -2,7 +2,7 @@ import type { DB } from "../db";
 import type { Image, PullRequest, Scan, SyncName, SyncRun } from "../db/schema";
 import { KV } from "../kv-keys";
 
-export const LOOPS: SyncName[] = ["report_sync", "tag_sync", "scan_queue", "pr_queue"];
+export const LOOPS: SyncName[] = ["report_sync", "tag_sync", "scan_queue", "pr_queue", "kev_sync"];
 
 export interface KvValue {
   value: string;

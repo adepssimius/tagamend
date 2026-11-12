@@ -13,7 +13,7 @@ import {
 } from "./common";
 
 export type MinSeverity = "CRITICAL" | "HIGH" | "MEDIUM";
-export const SORT_KEYS = ["image", "workloads", "critical", "high", "medium", "candidate"] as const;
+export const SORT_KEYS = ["image", "workloads", "critical", "high", "medium", "exploited", "candidate"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
 export interface OverviewOptions {
@@ -39,6 +39,8 @@ export interface OverviewRow {
   critical: number;
   high: number;
   medium: number;
+  /** CVEs in CISA's Known Exploited Vulnerabilities catalog. */
+  exploited: number;
   candidateCount: number;
   /** Tag discovery state for the image, so "no candidate" can say why. */
   tagCheck: {
@@ -65,6 +67,7 @@ export interface Overview {
     critical: number;
     high: number;
     medium: number;
+    exploited: number;
     withCandidate: number;
     candidatesScanned: number;
     /** Images tag discovery has checked at least once. */
@@ -102,12 +105,14 @@ async function severityCounts(db: DB, namespace: string | undefined) {
       qb
         .selectFrom("live")
         .innerJoin("vulnerabilities as v", "v.digest_id", "live.digest_id")
+        .leftJoin("kev as k", "k.cve_id", "v.vuln_id")
         .select([
           "live.image_id as image_id",
           "v.vuln_id as vuln_id",
           sql<number>`min(case v.severity when 'CRITICAL' then 0 when 'HIGH' then 1 when 'MEDIUM' then 2 when 'LOW' then 3 else 4 end)`.as(
             "sev_rank",
           ),
+          sql<number>`max(case when k.cve_id is null then 0 else 1 end)`.as("kev"),
         ])
         .groupBy(["live.image_id", "v.vuln_id"]),
     )
@@ -117,12 +122,16 @@ async function severityCounts(db: DB, namespace: string | undefined) {
       sql<number>`sum(case when sev_rank = 0 then 1 else 0 end)`.as("critical"),
       sql<number>`sum(case when sev_rank = 1 then 1 else 0 end)`.as("high"),
       sql<number>`sum(case when sev_rank = 2 then 1 else 0 end)`.as("medium"),
+      sql<number>`sum(kev)`.as("exploited"),
     ])
     .groupBy("image_id")
     .execute();
   // Postgres returns sum() as bigint, which pg hands back as a string.
   return new Map(
-    rows.map((r) => [Number(r.image_id), { critical: Number(r.critical), high: Number(r.high), medium: Number(r.medium) }]),
+    rows.map((r) => [
+      Number(r.image_id),
+      { critical: Number(r.critical), high: Number(r.high), medium: Number(r.medium), exploited: Number(r.exploited) },
+    ]),
   );
 }
 
@@ -171,7 +180,7 @@ export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<O
 
   let rows: OverviewRow[] = images.map((img) => {
     const ws = byImage.get(img.id) ?? [];
-    const c = counts.get(img.id) ?? { critical: 0, high: 0, medium: 0 };
+    const c = counts.get(img.id) ?? { critical: 0, high: 0, medium: 0, exploited: 0 };
     const t = best.get(img.id);
     const scan = t?.digest ? scansByDigest.get(scanKey(img.id, t.digest)) : undefined;
     return {
@@ -223,6 +232,8 @@ function comparator(sort: SortKey | undefined, dir: "asc" | "desc" | undefined) 
         return a.high - b.high || -worstFirst(a, b);
       case "medium":
         return a.medium - b.medium || -worstFirst(a, b);
+      case "exploited":
+        return a.exploited - b.exploited || -worstFirst(a, b);
       case "candidate": {
         // Descending (the default) puts the most useful first: the scanned candidate that fixes the most.
         const score = (r: OverviewRow) => (r.candidate ? 1 + (r.candidate.scan?.diff ? 1 + r.candidate.scan.diff.fixed : 0) : 0);
@@ -251,7 +262,7 @@ function tagCheckOf(
 }
 
 function emptyTotals(): Overview["totals"] {
-  return { images: 0, workloads: 0, critical: 0, high: 0, medium: 0, withCandidate: 0, candidatesScanned: 0, tagsChecked: 0 };
+  return { images: 0, workloads: 0, critical: 0, high: 0, medium: 0, exploited: 0, withCandidate: 0, candidatesScanned: 0, tagsChecked: 0 };
 }
 
 function totalsOf(rows: OverviewRow[]): Overview["totals"] {
@@ -262,6 +273,7 @@ function totalsOf(rows: OverviewRow[]): Overview["totals"] {
     t.critical += r.critical;
     t.high += r.high;
     t.medium += r.medium;
+    t.exploited += r.exploited;
     if (r.candidate) t.withCandidate++;
     if (r.candidate?.scan?.status === "done") t.candidatesScanned++;
     if (r.tagCheck.checkedAt) t.tagsChecked++;

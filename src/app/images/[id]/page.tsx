@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/submit-button";
 import {
   Ago,
   CveLink,
+  Cvss,
   Empty,
   ErrorText,
   ImageName,
@@ -21,6 +22,7 @@ import { getConfig } from "@/lib/config";
 import { getDb } from "@/lib/db";
 import type { PullRequest } from "@/lib/db/schema";
 import { getImagePage } from "@/lib/queries/image";
+import { kevFor } from "@/lib/queries/kev";
 import { openPullRequest, scanTag } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +32,15 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const imageId = Number(id);
   if (!Number.isInteger(imageId)) notFound();
-  const page = await getImagePage(await getDb(), imageId);
+  const db = await getDb();
+  const page = await getImagePage(db, imageId);
   const prsEnabled = !!getConfig().GITOPS_REPO;
   if (!page) notFound();
   const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, runningCounts, recentScans } = page;
+  const kev = await kevFor(db, vulns.map((v) => v.vuln_id));
+  const exploited = new Set(vulns.map((v) => v.vuln_id).filter((id) => kev.has(id))).size;
+  // Known-exploited first; the query's severity order holds within each group.
+  const sortedVulns = [...vulns].sort((a, b) => Number(kev.has(b.vuln_id)) - Number(kev.has(a.vuln_id)));
   const liveWorkloads = workloads.filter((w) => !w.gone_at);
   const runningTags = [...new Set(liveWorkloads.map((w) => w.tag ?? "(digest)"))].sort();
   const candidates = tags.filter((t) => t.is_candidate);
@@ -45,7 +52,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
       <h1 className="break-all text-lg">
         <ImageName registry={image.registry} repository={image.repository} />
       </h1>
-      <dl className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded border border-zinc-200 bg-zinc-200 text-sm sm:grid-cols-5 dark:border-zinc-800 dark:bg-zinc-800">
+      <dl className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded border border-zinc-200 bg-zinc-200 text-sm sm:grid-cols-6 dark:border-zinc-800 dark:bg-zinc-800">
         {(
           [
             ["Running", <span key="t" className="font-mono text-base">{runningTags.join(", ") || "—"}</span>],
@@ -53,6 +60,12 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
             ["Critical", <SeverityCount key="c" severity="CRITICAL" n={runningCounts.critical} />],
             ["High", <SeverityCount key="h" severity="HIGH" n={runningCounts.high} />],
             ["Medium", <SeverityCount key="m" severity="MEDIUM" n={runningCounts.medium} />],
+            [
+              "Known exploited",
+              <span key="k" className={exploited ? "text-red-700 dark:text-red-400" : "text-zinc-300 dark:text-zinc-700"} title="CVEs in CISA's Known Exploited Vulnerabilities catalog">
+                {exploited}
+              </span>,
+            ],
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="min-w-0 bg-white px-3 py-2 dark:bg-zinc-950">
@@ -260,6 +273,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
             <thead>
               <tr>
                 <th>Severity</th>
+                <th className="text-right">CVSS</th>
                 <th>ID</th>
                 <th>Package</th>
                 <th>Installed</th>
@@ -269,13 +283,16 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
               </tr>
             </thead>
             <tbody>
-              {vulns.map((v) => (
+              {sortedVulns.map((v) => (
                 <tr key={v.id}>
                   <td>
                     <SeverityBadge severity={v.severity} />
                   </td>
+                  <td className="text-right">
+                    <Cvss score={v.score} />
+                  </td>
                   <td>
-                    <CveLink id={v.vuln_id} link={v.link} />
+                    <CveLink id={v.vuln_id} link={v.link} kev={kev.get(v.vuln_id)} />
                   </td>
                   <td className="font-mono text-xs">{v.package}</td>
                   <td className="font-mono text-xs">{v.installed_version}</td>

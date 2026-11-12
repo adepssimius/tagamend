@@ -24,6 +24,7 @@ const LOOP_NAMES: Record<SyncName, string> = {
   tag_sync: "Tag discovery",
   scan_queue: "Scan queue",
   pr_queue: "PR queue",
+  kev_sync: "Known exploited (CISA)",
 };
 
 const warnClass = "font-semibold text-amber-700 dark:text-amber-300";
@@ -42,7 +43,7 @@ export default async function StatusPage() {
       <h1 className="text-lg font-semibold">Status</h1>
 
       <Section title="Background loops">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {LOOPS.map((name) => {
             const runs = page.runs[name];
             const latest = runs[0];

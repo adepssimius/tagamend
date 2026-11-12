@@ -25,7 +25,12 @@ export const MANIFEST_ACCEPT = [
 
 const USER_AGENT = "tagamend";
 const PAGE_SIZE = 1000;
-const MAX_PAGES = 100;
+/**
+ * A guard against a registry that links pages forever, not a size limit:
+ * immich-app/immich-machine-learning alone has over 60,000 tags on ghcr.io
+ * (1,000 per page), one per commit, PR and hardware variant.
+ */
+const MAX_PAGES = 1000;
 const MAX_REDIRECTS = 5;
 /** Token lifetime when the token response does not say (the distribution spec's default). */
 const DEFAULT_TOKEN_SECONDS = 60;

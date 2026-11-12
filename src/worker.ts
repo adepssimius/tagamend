@@ -6,6 +6,7 @@ import { syncReports } from "./lib/k8s/report-sync";
 import { syncTags } from "./lib/candidates/tag-sync";
 import { runScanQueue } from "./lib/scan/queue";
 import { runPrQueue } from "./lib/gitops/queue";
+import { syncKev } from "./lib/kev/sync";
 import type { SyncName } from "./lib/db/schema";
 import type { WorkerContext } from "./lib/worker-context";
 
@@ -49,6 +50,8 @@ const loops = [
   loop("scan_queue", 5_000, runScanQueue, false),
   // Records its own runs, like the scan queue.
   loop("pr_queue", 5_000, (c) => runPrQueue(c), false),
+  // CISA updates the catalog a few times a week.
+  loop("kev_sync", 6 * 3_600_000, (c) => syncKev(c)),
 ];
 const pruner = setInterval(() => pruneSyncRuns(db).catch((e) => log.warn("prune failed", { error: errorMessage(e) })), 3_600_000);
 

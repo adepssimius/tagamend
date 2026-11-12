@@ -12,7 +12,7 @@ type Bool = number;
 
 export type DigestSource = "operator" | "candidate";
 export type ScanStatus = "queued" | "running" | "done" | "failed";
-export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue";
+export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync";
 export type PullRequestStatus = "queued" | "running" | "opened" | "failed";
 
 export interface ImagesTable {
@@ -132,6 +132,19 @@ export interface PullRequestsTable {
   error: string | null;
 }
 
+/** CISA's Known Exploited Vulnerabilities catalog: CVEs exploited in the wild. */
+export interface KevTable {
+  cve_id: string;
+  vulnerability_name: string | null;
+  vendor_project: string | null;
+  product: string | null;
+  date_added: string;
+  due_date: string | null;
+  /** 1 when CISA knows of ransomware campaigns using it. */
+  known_ransomware: Bool;
+  short_description: string | null;
+}
+
 /** Small key/value facts, such as the Trivy server version. */
 export interface KvTable {
   key: string;
@@ -148,6 +161,7 @@ export interface Database {
   scans: ScansTable;
   sync_runs: SyncRunsTable;
   pull_requests: PullRequestsTable;
+  kev: KevTable;
   kv: KvTable;
 }
 
@@ -161,6 +175,7 @@ export type Scan = Selectable<ScansTable>;
 export type ScanUpdate = Updateable<ScansTable>;
 export type SyncRun = Selectable<SyncRunsTable>;
 export type PullRequest = Selectable<PullRequestsTable>;
+export type Kev = Selectable<KevTable>;
 
 // Silence "unused" for ColumnType in case a later table needs it.
 export type _Unused = ColumnType<never>;

@@ -92,6 +92,7 @@ for (const { name, url } of testDatabases()) {
       expect(created).toBe(true);
       expect((await queuePullRequest(db, { scanId, requestedBy: "ben" })).created).toBe(false);
 
+      await db.insertInto("kev").values({ cve_id: "CVE-1", vulnerability_name: "x", vendor_project: null, product: null, date_added: "2026-01-01", due_date: null, known_ransomware: 0, short_description: null }).execute();
       const gh = new FakeGitHub();
       expect(await runPrQueue(ctxFor(db), { github: gh })).toMatchObject({ opened: 1 });
 
@@ -103,7 +104,8 @@ for (const { name, url } of testDatabases()) {
       const body = gh.prs[0]!.body;
       expect(gh.prs[0]!.title).toBe("books: bump 2.32.1 to 2.37.2");
       expect(gh.prs[0]!.base).toBe("main");
-      expect(body).toContain("**Fixes:** 1 critical, 0 high, 1 medium");
+      expect(body).toContain("**Fixes:** 1 critical, 0 high, 1 medium, of which **1 known exploited**");
+      expect(body).toContain("[CVE-1](https://osv.dev/vulnerability/CVE-1) **exploited**");
       expect(body).toContain("**Still present:** 0 critical, 1 high, 0 medium. 1 of these have a fix upstream");
       expect(body).toContain("**New in 2.37.2:** 0 critical, 1 high, 0 medium");
       expect(body).toContain("https://tagamend.example/scans/");

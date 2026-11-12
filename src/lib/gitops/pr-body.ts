@@ -11,19 +11,21 @@ export interface PrContent {
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM"] as const;
 const LISTED = 25;
 
-function countBy(vs: Vulnerability[]): string {
+function countBy(vs: Vulnerability[], exploited: Set<string> = new Set()): string {
   const ids = (s: string) => new Set(vs.filter((v) => v.severity === s).map((v) => v.vuln_id)).size;
-  return SEVERITIES.map((s) => `${ids(s)} ${s.toLowerCase()}`).join(", ");
+  const kev = new Set(vs.map((v) => v.vuln_id).filter((id) => exploited.has(id))).size;
+  return SEVERITIES.map((s) => `${ids(s)} ${s.toLowerCase()}`).join(", ") + (kev ? `, of which **${kev} known exploited**` : "");
 }
 
-function list(vs: Vulnerability[]): string {
+function list(vs: Vulnerability[], exploited: Set<string>): string {
   const seen = new Set<string>();
   const rows: string[] = [];
   for (const v of vs) {
-    if (v.severity !== "CRITICAL" && v.severity !== "HIGH") continue;
+    if (v.severity !== "CRITICAL" && v.severity !== "HIGH" && !exploited.has(v.vuln_id)) continue;
     if (seen.has(v.vuln_id)) continue;
     seen.add(v.vuln_id);
-    rows.push(`| ${v.severity} | [${v.vuln_id}](https://osv.dev/vulnerability/${v.vuln_id}) | \`${v.package}\` | ${(v.title ?? "").replace(/\|/g, "\\|").slice(0, 90)} |`);
+    const flag = exploited.has(v.vuln_id) ? " **exploited**" : "";
+    rows.push(`| ${v.severity} | [${v.vuln_id}](https://osv.dev/vulnerability/${v.vuln_id})${flag} | \`${v.package}\` | ${(v.title ?? "").replace(/\|/g, "\\|").slice(0, 90)} |`);
   }
   if (rows.length === 0) return "";
   const more = rows.length > LISTED ? `\n\n${rows.length - LISTED} more on the scan page.` : "";
@@ -45,7 +47,10 @@ export function buildPrContent(opts: {
   skipped: Skipped[];
   scanUrl: string | null;
   requestedBy: string | null;
+  /** CVE ids in CISA's Known Exploited Vulnerabilities catalog. */
+  exploited?: Set<string>;
 }): PrContent {
+  const exploited = opts.exploited ?? new Set<string>();
   const app = opts.repository.split("/").pop()!;
   const from = opts.fromTags.join(", ");
   const title = `${app}: bump ${from} to ${opts.toTag}`;
@@ -59,14 +64,14 @@ export function buildPrContent(opts: {
   lines.push("");
   lines.push("## What the candidate scan shows");
   lines.push("");
-  lines.push(`- **Fixes:** ${countBy(fixed)}`);
-  lines.push(`- **Still present:** ${countBy(stillPresent.map((s) => s.running))}${upstream ? `. ${upstream} of these have a fix upstream that ${opts.toTag} does not include yet.` : ""}`);
-  lines.push(`- **New in ${opts.toTag}:** ${countBy(introduced)}`);
+  lines.push(`- **Fixes:** ${countBy(fixed, exploited)}`);
+  lines.push(`- **Still present:** ${countBy(stillPresent.map((s) => s.running), exploited)}${upstream ? `. ${upstream} of these have a fix upstream that ${opts.toTag} does not include yet.` : ""}`);
+  lines.push(`- **New in ${opts.toTag}:** ${countBy(introduced, exploited)}`);
   if (opts.scanUrl) lines.push(`\nFull diff: ${opts.scanUrl}`);
-  const fixedList = list(fixed);
-  if (fixedList) lines.push("", "### Critical and high fixed", "", fixedList);
-  const newList = list(introduced);
-  if (newList) lines.push("", `### Critical and high new in ${opts.toTag}`, "", newList);
+  const fixedList = list(fixed, exploited);
+  if (fixedList) lines.push("", "### Critical, high, and exploited fixed", "", fixedList);
+  const newList = list(introduced, exploited);
+  if (newList) lines.push("", `### Critical, high, and exploited new in ${opts.toTag}`, "", newList);
 
   lines.push("", "## Changes", "");
   for (const e of opts.edits) lines.push(`- \`${e.path}:${e.line}\``);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ScanStatus } from "@/lib/db/schema";
+import type { Kev, ScanStatus } from "@/lib/db/schema";
 
 /** One colour per severity, used for badges and counts everywhere. */
 const SEVERITY_STYLE: Record<string, { badge: string; text: string }> = {
@@ -57,8 +57,41 @@ function hostOf(url: string): string {
 }
 export const cveHref = (id: string) => `/cves/${encodeURIComponent(id)}`;
 
-/** Links a vuln id to its page here, plus an external link. */
-export function CveLink({ id, link }: { id: string; link: string | null }) {
+/** Marks a CVE in CISA's Known Exploited Vulnerabilities catalog. */
+export function ExploitedBadge({ kev }: { kev: Kev }) {
+  const title = [
+    `In CISA's Known Exploited Vulnerabilities catalog since ${kev.date_added}`,
+    kev.vulnerability_name,
+    kev.known_ransomware ? "Known to be used in ransomware campaigns." : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <span
+      title={title}
+      className="ml-1.5 inline-block rounded border border-red-600 px-1 text-[10px] font-semibold uppercase leading-4 tracking-wide text-red-700 dark:border-red-500 dark:text-red-400"
+    >
+      {kev.known_ransomware ? "exploited · ransomware" : "exploited"}
+    </span>
+  );
+}
+
+/** A CVSS base score, coloured by band. */
+export function Cvss({ score }: { score: number | null }) {
+  if (score == null) return <span className="text-xs text-zinc-400">—</span>;
+  const cls =
+    score >= 9
+      ? "font-semibold text-red-700 dark:text-red-400"
+      : score >= 7
+        ? "font-semibold text-orange-700 dark:text-orange-400"
+        : score >= 4
+          ? "text-amber-700 dark:text-amber-300"
+          : "text-zinc-500";
+  return <span className={`tabular-nums text-xs ${cls}`}>{score.toFixed(1)}</span>;
+}
+
+/** Links a vuln id to its page here, plus an external link, and flags known exploitation. */
+export function CveLink({ id, link, kev }: { id: string; link: string | null; kev?: Kev | null }) {
   return (
     <span className="whitespace-nowrap">
       <Link href={cveHref(id)} className="font-mono text-xs text-blue-700 hover:underline dark:text-blue-400">
@@ -73,6 +106,7 @@ export function CveLink({ id, link }: { id: string; link: string | null }) {
       >
         ↗
       </a>
+      {kev && <ExploitedBadge kev={kev} />}
     </span>
   );
 }

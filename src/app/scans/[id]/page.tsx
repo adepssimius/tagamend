@@ -4,6 +4,7 @@ import { requireUser } from "@/auth";
 import {
   Ago,
   CveLink,
+  Cvss,
   Empty,
   ErrorText,
   ImageName,
@@ -16,18 +17,20 @@ import {
   Table,
 } from "@/components/ui";
 import { getDb } from "@/lib/db";
-import type { Vulnerability } from "@/lib/db/schema";
+import type { Kev, Vulnerability } from "@/lib/db/schema";
+import { kevFor } from "@/lib/queries/kev";
 import { getScanPage } from "@/lib/queries/scan";
 import { diffSummary } from "@/lib/trivy/diff";
 
 export const dynamic = "force-dynamic";
 
-function VulnTable({ rows }: { rows: Vulnerability[] }) {
+function VulnTable({ rows, kev }: { rows: Vulnerability[]; kev: Map<string, Kev> }) {
   return (
     <Table>
       <thead>
         <tr>
           <th>Severity</th>
+          <th className="text-right">CVSS</th>
           <th>ID</th>
           <th>Package</th>
           <th>Installed</th>
@@ -41,8 +44,11 @@ function VulnTable({ rows }: { rows: Vulnerability[] }) {
             <td>
               <SeverityBadge severity={v.severity} />
             </td>
+            <td className="text-right">
+              <Cvss score={v.score} />
+            </td>
             <td>
-              <CveLink id={v.vuln_id} link={v.link} />
+              <CveLink id={v.vuln_id} link={v.link} kev={kev.get(v.vuln_id)} />
             </td>
             <td className="font-mono text-xs">{v.package}</td>
             <td className="font-mono text-xs">{v.installed_version}</td>
@@ -70,6 +76,10 @@ export default async function ScanPage({
   const page = await getScanPage(await getDb(), scanId, running ? Number(running) : undefined);
   if (!page) notFound();
   const { scan, image, resultDigest, runningDigests, comparedWith, diff } = page;
+  const kev = await kevFor(
+    await getDb(),
+    diff ? [...diff.fixed, ...diff.introduced, ...diff.stillPresent.map((s) => s.running)].map((v) => v.vuln_id) : [],
+  );
 
   return (
     <div>
@@ -153,7 +163,7 @@ export default async function ScanPage({
           </p>
 
           <Section title="Fixed" count={diff.fixed.length} note="In the running image, not in this candidate.">
-            {diff.fixed.length ? <VulnTable rows={diff.fixed} /> : <Empty>Nothing.</Empty>}
+            {diff.fixed.length ? <VulnTable rows={diff.fixed} kev={kev} /> : <Empty>Nothing.</Empty>}
           </Section>
 
           <Section
@@ -166,6 +176,7 @@ export default async function ScanPage({
                 <thead>
                   <tr>
                     <th>Severity</th>
+                    <th className="text-right">CVSS</th>
                     <th>ID</th>
                     <th>Package</th>
                     <th>Running</th>
@@ -180,8 +191,11 @@ export default async function ScanPage({
                       <td>
                         <SeverityBadge severity={c.severity} />
                       </td>
+                      <td className="text-right">
+                        <Cvss score={c.score ?? v.score} />
+                      </td>
                       <td>
-                        <CveLink id={v.vuln_id} link={v.link} />
+                        <CveLink id={v.vuln_id} link={v.link} kev={kev.get(v.vuln_id)} />
                       </td>
                       <td className="font-mono text-xs">{v.package}</td>
                       <td className="font-mono text-xs">{v.installed_version}</td>
@@ -207,7 +221,7 @@ export default async function ScanPage({
           </Section>
 
           <Section title="New" count={diff.introduced.length} note="In this candidate, not in the running image.">
-            {diff.introduced.length ? <VulnTable rows={diff.introduced} /> : <Empty>Nothing.</Empty>}
+            {diff.introduced.length ? <VulnTable rows={diff.introduced} kev={kev} /> : <Empty>Nothing.</Empty>}
           </Section>
         </>
       )}
