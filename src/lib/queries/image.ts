@@ -44,7 +44,15 @@ export interface ImagePage {
    * Pods on an older build than their report scanned: the tag moved after they
    * started. `scan` is the newest scan of that build, if any.
    */
-  staleBuilds: { tag: string | null; podDigest: string; reportDigest: string | null; scanned: boolean; scan: Scan | null }[];
+  staleBuilds: {
+    tag: string | null;
+    podDigest: string;
+    reportDigest: string | null;
+    scanned: boolean;
+    scan: Scan | null;
+    /** The workloads running this build, as "namespace/name". */
+    workloads: string[];
+  }[];
   recentScans: (Scan & { diff: DiffCounts | null })[];
 }
 
@@ -119,20 +127,22 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
     pinnedByDigest: live.length > 0 && live.every((w) => w.tag == null),
     runningCounts: cveCounts(rawVulns),
     staleBuilds: [
-      ...new Map(
-        live
-          .filter((w) => w.pod_digest)
-          .map((w) => [
-            w.pod_digest!,
-            {
-              tag: w.tag,
-              podDigest: w.pod_digest!,
-              reportDigest: w.report_digest,
-              scanned: runningDigests.some((d) => d.digest === w.pod_digest),
-              scan: scansByDigest.get(scanKey(imageId, w.pod_digest!)) ?? null,
-            },
-          ]),
-      ).values(),
+      ...live
+        .filter((w) => w.pod_digest)
+        .reduce((m, w) => {
+          const cur = m.get(w.pod_digest!) ?? {
+            tag: w.tag,
+            podDigest: w.pod_digest!,
+            reportDigest: w.report_digest,
+            scanned: runningDigests.some((d) => d.digest === w.pod_digest),
+            scan: scansByDigest.get(scanKey(imageId, w.pod_digest!)) ?? null,
+            workloads: [] as string[],
+          };
+          const name = `${w.namespace}/${w.name}`;
+          if (!cur.workloads.includes(name)) cur.workloads.push(name);
+          return m.set(w.pod_digest!, cur);
+        }, new Map<string, ImagePage["staleBuilds"][number]>())
+        .values(),
     ],
     recentScans: recent.map((s) => ({ ...s, diff: summaries.get(s.id) ?? null })),
   };

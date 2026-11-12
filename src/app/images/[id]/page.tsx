@@ -89,8 +89,8 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
           className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs dark:border-amber-800 dark:bg-amber-950/40"
         >
           <p className="font-medium text-amber-900 dark:text-amber-200">
-            The pod runs an older build of <span className="font-mono">{b.tag ?? "this image"}</span>:{" "}
-            <ShortDigest digest={b.podDigest} />.
+            {b.workloads.join(", ")} {b.workloads.length === 1 ? "runs" : "run"} an older build of{" "}
+            <span className="font-mono">{b.tag ?? "this image"}</span>: <ShortDigest digest={b.podDigest} />.
           </p>
           {b.scanned ? (
             <p className="mt-1 text-amber-900/80 dark:text-amber-200/80">
@@ -151,6 +151,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                 <th>Workload</th>
                 <th>Container</th>
                 <th>Tag</th>
+                <th title="The image digest this workload's pods actually run">Build</th>
                 <th>Last seen</th>
               </tr>
             </thead>
@@ -164,6 +165,23 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                   </td>
                   <td>{w.container}</td>
                   <td className="font-mono text-xs">{w.tag ?? <span className={mutedClass}>pinned by digest</span>}</td>
+                  <td className="whitespace-nowrap">
+                    {w.pod_digest ? (
+                      <>
+                        <ShortDigest digest={w.pod_digest} />
+                        <span
+                          className="ml-1.5 text-xs text-amber-700 dark:text-amber-300"
+                          title={`The tag now points to ${w.report_digest ?? "another digest"}; this workload has not pulled it`}
+                        >
+                          behind the tag
+                        </span>
+                      </>
+                    ) : w.report_digest ? (
+                      <ShortDigest digest={w.report_digest} />
+                    ) : (
+                      <span className={mutedClass}>—</span>
+                    )}
+                  </td>
                   <td>
                     <Ago iso={w.last_seen_at} />
                     {w.gone_at && <span className={`ml-1.5 text-xs ${mutedClass}`}>gone</span>}
