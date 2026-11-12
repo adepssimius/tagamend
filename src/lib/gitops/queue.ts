@@ -58,7 +58,7 @@ export async function runPrQueue(ctx: WorkerContext, deps: PrQueueDeps = {}): Pr
       const result = await openOne(ctx, next, deps);
       await db
         .updateTable("pull_requests")
-        .set({ status: "opened", finished_at: now(), ...result })
+        .set({ status: "opened", finished_at: now(), pr_state: "open", pr_state_checked_at: now(), ...result })
         .where("id", "=", next.id)
         .execute();
       ctx.log.info("pr opened", { pr: next.id, url: result.pr_url });
@@ -152,3 +152,4 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
   const pr = await github.openPr({ head: branch, base: config.GITOPS_BRANCH, title: content.title, body: content.body });
   return { ...partial, branch, pr_number: pr.number, pr_url: pr.url };
 }
+

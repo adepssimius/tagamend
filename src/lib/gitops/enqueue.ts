@@ -38,6 +38,8 @@ export async function queuePullRequest(
       branch: null,
       pr_number: null,
       pr_url: null,
+      pr_state: null,
+      pr_state_checked_at: null,
       edits: null,
       skipped: null,
       error: null,

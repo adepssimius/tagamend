@@ -12,7 +12,9 @@ import {
   Section,
   Table,
 } from "@/components/ui";
+import { PrLink } from "@/components/pr-link";
 import { getConfig } from "@/lib/config";
+import { refreshPrStates } from "@/lib/gitops/pr-state";
 import { getDb } from "@/lib/db";
 import type { SyncName } from "@/lib/db/schema";
 import { getStatusPage, imageRefTag, LOOPS, sameVersion } from "@/lib/queries/status";
@@ -31,7 +33,9 @@ const warnClass = "font-semibold text-amber-700 dark:text-amber-300";
 
 export default async function StatusPage() {
   await requireUser();
-  const page = await getStatusPage(await getDb());
+  const db = await getDb();
+  await refreshPrStates(db, { repo: getConfig().GITOPS_REPO, token: getConfig().GITHUB_READ_TOKEN });
+  const page = await getStatusPage(db);
   const trivyImage = getConfig().TRIVY_IMAGE;
   const clientVersion = imageRefTag(trivyImage);
   const differs = (v: string | undefined) => !!clientVersion && v !== undefined && !sameVersion(v, clientVersion);
@@ -161,16 +165,14 @@ export default async function StatusPage() {
                     </Link>
                   </td>
                   <td className="font-mono text-xs">{p.to_tag}</td>
-                  <td className="text-xs">{p.status}</td>
+                  <td className="text-xs">{p.status === "opened" ? (p.pr_state ?? "open") : p.status}</td>
                   <td>
                     <Ago iso={p.requested_at} />
                   </td>
                   <td className="text-xs">{p.requested_by ?? "—"}</td>
                   <td className="text-xs">
-                    {p.pr_url ? (
-                      <a href={p.pr_url} className={linkClass} target="_blank" rel="noreferrer">
-                        PR #{p.pr_number}
-                      </a>
+                    {p.pr_url && p.pr_number != null ? (
+                      <PrLink number={p.pr_number} url={p.pr_url} state={p.pr_state} />
                     ) : p.error ? (
                       <ErrorText>{p.error}</ErrorText>
                     ) : (

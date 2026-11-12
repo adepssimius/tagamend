@@ -68,6 +68,9 @@ const schema = z.object({
     .optional(),
   GITOPS_BRANCH: z.string().default("main"),
   GITHUB_TOKEN: z.string().optional(),
+  // Read-only token for the web process: Pull requests read on GITOPS_REPO.
+  // Used to show whether a PR is open, merged or closed when a page loads.
+  GITHUB_READ_TOKEN: z.string().optional(),
   // Base URL of this app, for links in PR bodies. Falls back to AUTH_URL.
   APP_URL: z.string().url().optional(),
   AUTH_URL: z.string().url().optional(),

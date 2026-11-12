@@ -14,6 +14,8 @@ export type DigestSource = "operator" | "candidate";
 export type ScanStatus = "queued" | "running" | "done" | "failed";
 export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync";
 export type PullRequestStatus = "queued" | "running" | "opened" | "failed";
+/** The PR on GitHub, once opened. */
+export type PullRequestState = "open" | "draft" | "merged" | "closed";
 
 export interface ImagesTable {
   id: Generated<number>;
@@ -135,6 +137,9 @@ export interface PullRequestsTable {
   branch: string | null;
   pr_number: number | null;
   pr_url: string | null;
+  /** GitHub's view of the PR, refreshed while it is open. */
+  pr_state: PullRequestState | null;
+  pr_state_checked_at: Timestamp | null;
   /** JSON text: the edits made, [{path, line, before, after}]. */
   edits: string | null;
   /** JSON text: references found but left alone, [{path, line, reason}]. */

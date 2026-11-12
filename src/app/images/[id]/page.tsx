@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth";
+import { PrLink } from "@/components/pr-link";
 import { SubmitButton } from "@/components/submit-button";
 import {
   Ago,
@@ -19,6 +20,7 @@ import {
   Table,
 } from "@/components/ui";
 import { getConfig } from "@/lib/config";
+import { refreshPrStates } from "@/lib/gitops/pr-state";
 import { getDb } from "@/lib/db";
 import type { PullRequest } from "@/lib/db/schema";
 import { getImagePage } from "@/lib/queries/image";
@@ -33,6 +35,9 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   const imageId = Number(id);
   if (!Number.isInteger(imageId)) notFound();
   const db = await getDb();
+  const config = getConfig();
+  // On demand: an open PR's state is read from GitHub as the page loads.
+  await refreshPrStates(db, { repo: config.GITOPS_REPO, token: config.GITHUB_READ_TOKEN, imageId });
   const page = await getImagePage(db, imageId);
   const prsEnabled = !!getConfig().GITOPS_REPO;
   if (!page) notFound();
@@ -400,12 +405,8 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
 
 /** The PR state for one candidate, or the button that requests one once it is scanned. */
 function PrCell({ pr, scanId }: { pr: PullRequest | null; scanId: number | null }) {
-  if (pr?.status === "opened" && pr.pr_url) {
-    return (
-      <a href={pr.pr_url} className={`text-xs ${linkClass}`} target="_blank" rel="noreferrer">
-        PR #{pr.pr_number}
-      </a>
-    );
+  if (pr?.status === "opened" && pr.pr_url && pr.pr_number != null) {
+    return <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />;
   }
   if (pr?.status === "queued" || pr?.status === "running") {
     return <span className={`text-xs ${mutedClass}`}>{pr.status === "queued" ? "queued" : "opening…"}</span>;

@@ -4,6 +4,7 @@ import { type DB, now } from "@/lib/db";
 import { storeDigest, upsertImage } from "@/lib/db/store";
 import { queuePullRequest } from "@/lib/gitops/enqueue";
 import type { GitHub } from "@/lib/gitops/github";
+import { refreshPrStates } from "@/lib/gitops/pr-state";
 import { branchName, runPrQueue } from "@/lib/gitops/queue";
 import { log } from "@/lib/log";
 import type { Finding } from "@/lib/trivy/finding";
@@ -52,6 +53,12 @@ class FakeGitHub implements GitHub {
   }
   async branchExists(b: string) {
     return this.existingBranches.has(b);
+  }
+  states = new Map<number, "open" | "draft" | "merged" | "closed">();
+  stateCalls = 0;
+  async prState(n: number) {
+    this.stateCalls++;
+    return this.states.get(n) ?? "open";
   }
 }
 
@@ -114,6 +121,33 @@ for (const { name, url } of testDatabases()) {
       const row = await db.selectFrom("pull_requests").selectAll().where("id", "=", pr.id).executeTakeFirstOrThrow();
       expect(row).toMatchObject({ status: "opened", pr_number: 7, pr_url: "https://github.com/o/r/pull/7", branch: "tagamend/books-2.37.2" });
       expect(await runPrQueue(ctxFor(db), { github: gh })).toEqual({ idle: true });
+    });
+
+    it("reads back PR state on demand, reusing a fresh check and never rechecking a final one", async () => {
+      db = await freshDb(url);
+      const { scanId, img } = await setup(db);
+      await queuePullRequest(db, { scanId, requestedBy: "ben" });
+      const gh = new FakeGitHub();
+      await runPrQueue(ctxFor(db), { github: gh });
+      const state = async () => (await db.selectFrom("pull_requests").select("pr_state").executeTakeFirstOrThrow()).pr_state;
+      expect(await state()).toBe("open");
+
+      let t = Date.parse("2030-01-01T00:00:00Z");
+      const opts = { repo: "o/r", token: undefined, github: gh, imageId: img, nowMs: () => t };
+      expect(await refreshPrStates(db, opts)).toBe(0);
+      expect(gh.stateCalls).toBe(1);
+      t += 10_000; // fresh: no call
+      await refreshPrStates(db, opts);
+      expect(gh.stateCalls).toBe(1);
+
+      gh.states.set(7, "merged");
+      t += 60_000;
+      expect(await refreshPrStates(db, opts)).toBe(1);
+      expect(await state()).toBe("merged");
+      t += 600_000; // merged is final
+      await refreshPrStates(db, opts);
+      expect(gh.stateCalls).toBe(2);
+      expect(await refreshPrStates(db, { ...opts, imageId: img + 1 })).toBe(0);
     });
 
     it("fails with a reason when the repo does not reference the image", async () => {

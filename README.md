@@ -83,6 +83,11 @@ empty PR.
 The worker needs `GITHUB_TOKEN`: a fine-grained PAT limited to that repository,
 with Contents and Pull requests read and write. The web process never sees it.
 
+The web process can take `GITHUB_READ_TOKEN`, a separate fine-grained PAT with
+only Pull requests read on that repository. With it, pages that show an open PR
+ask GitHub for its state as they load (cached 30 seconds, 3-second timeout), so
+a merge shows on the next reload. Without it, PRs show as open.
+
 ## Configuration
 
 See `src/lib/config.ts` for every variable and its default, and `.env.example`.

@@ -14,6 +14,8 @@ export interface GitHub {
   findOpenPr(branch: string): Promise<{ number: number; url: string } | null>;
   openPr(opts: { head: string; base: string; title: string; body: string }): Promise<{ number: number; url: string }>;
   branchExists(branch: string): Promise<boolean>;
+  /** Where a PR stands now. */
+  prState(number: number): Promise<"open" | "draft" | "merged" | "closed">;
 }
 
 export class GitHubError extends Error {
@@ -79,6 +81,12 @@ export function gitHubClient(repo: string, token: string, fetchImpl: typeof fetc
     async openPr({ head, base, title, body }) {
       const pr = await post<{ number: number; html_url: string }>("/pulls", { head, base, title, body });
       return { number: pr.number, url: pr.html_url };
+    },
+    async prState(number) {
+      const pr = await json<{ state: "open" | "closed"; merged_at: string | null; draft?: boolean }>(`/pulls/${number}`);
+      if (pr.merged_at) return "merged";
+      if (pr.state === "closed") return "closed";
+      return pr.draft ? "draft" : "open";
     },
     async branchExists(branch) {
       try {
