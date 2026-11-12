@@ -26,7 +26,11 @@ export async function openPullRequest(formData: FormData): Promise<void> {
   const scanId = Number(formData.get("scanId"));
   if (!Number.isInteger(scanId)) throw new Error("openPullRequest: bad scanId");
   const db = await getDb();
-  const { pr } = await queuePullRequest(db, { scanId, requestedBy: user.username });
+  // Unticking workloads narrows the PR; all ticked (or no picker) means all.
+  const chosen = formData.getAll("workload").map(String);
+  const all = formData.getAll("allWorkloads").map(String);
+  const workloads = chosen.length && chosen.length < all.length ? chosen : null;
+  const { pr } = await queuePullRequest(db, { scanId, requestedBy: user.username, workloads });
   revalidatePath(`/images/${pr.image_id}`);
   revalidatePath("/status");
 }

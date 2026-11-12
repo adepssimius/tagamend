@@ -21,8 +21,11 @@ export interface ImageVulnRow extends Vulnerability {
 export interface ImageTagRow extends Tag {
   scan: Scan | null;
   diff: DiffCounts | null;
-  /** The newest GitOps PR request for this tag. */
-  pr: PullRequest | null;
+  /**
+   * GitOps PR requests for this tag, newest first: one per choice of
+   * workloads (all of them, or a subset), skipping older ones it superseded.
+   */
+  prs: PullRequest[];
   /** CVE counts of the scanned candidate, counted like `runningCounts`. Null until scanned. */
   counts: CveCounts | null;
 }
@@ -83,8 +86,12 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
     db.selectFrom("scans").selectAll().where("image_id", "=", imageId).orderBy("id", "desc").limit(20).execute(),
     db.selectFrom("pull_requests").selectAll().where("image_id", "=", imageId).orderBy("id", "desc").execute(),
   ]);
-  const prByTag = new Map<string, PullRequest>();
-  for (const p of prs) if (!prByTag.has(p.to_tag)) prByTag.set(p.to_tag, p);
+  const prsByTag = new Map<string, PullRequest[]>();
+  for (const p of prs) {
+    const list = prsByTag.get(p.to_tag) ?? [];
+    if (!list.some((q) => q.workloads === p.workloads)) list.push(p);
+    prsByTag.set(p.to_tag, list);
+  }
 
   // One row per (vuln_id, package, installed_version, fixed_version) across the running digests.
   const grouped = new Map<string, ImageVulnRow>();
@@ -119,7 +126,7 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
           ...t,
           scan,
           diff: scan ? (summaries.get(scan.id) ?? null) : null,
-          pr: prByTag.get(t.tag) ?? null,
+          prs: prsByTag.get(t.tag) ?? [],
           counts: scan?.status === "done" && scan.result_digest_id != null ? (countsByDigest.get(scan.result_digest_id) ?? null) : null,
         };
       }),

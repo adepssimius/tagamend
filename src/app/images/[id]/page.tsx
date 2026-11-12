@@ -290,7 +290,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                   </td>
                   {prsEnabled && (
                     <td>
-                      <PrCell pr={t.pr} scanId={t.scan?.status === "done" ? t.scan.id : null} />
+                      <PrCell prs={t.prs} scanId={t.scan?.status === "done" ? t.scan.id : null} workloads={liveWorkloads} />
                     </td>
                   )}
                 </tr>
@@ -421,28 +421,81 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   );
 }
 
-/** The PR state for one candidate, or the button that requests one once it is scanned. */
-function PrCell({ pr, scanId }: { pr: PullRequest | null; scanId: number | null }) {
-  if (pr?.status === "opened" && pr.pr_url && pr.pr_number != null) {
-    return <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />;
+/** A workload's key in a PR request: "namespace/Kind/name". */
+const workloadKey = (w: { namespace: string; kind: string; name: string }) => `${w.namespace}/${w.kind}/${w.name}`;
+
+/** One PR request: its link and state, its progress, or its failure. */
+function PrState({ pr }: { pr: PullRequest }) {
+  const only = pr.workloads ? (JSON.parse(pr.workloads) as string[]).map((k) => k.split("/").pop()).join(", ") : null;
+  const scope = only ? <span className={`ml-1 text-xs ${mutedClass}`}>({only})</span> : null;
+  if (pr.status === "opened" && pr.pr_url && pr.pr_number != null) {
+    return (
+      <div>
+        <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />
+        {scope}
+      </div>
+    );
   }
-  if (pr?.status === "queued" || pr?.status === "running") {
-    return <span className={`text-xs ${mutedClass}`}>{pr.status === "queued" ? "queued" : "opening…"}</span>;
+  if (pr.status === "queued" || pr.status === "running") {
+    return (
+      <div className={`text-xs ${mutedClass}`}>
+        {pr.status === "queued" ? "queued" : "opening…"}
+        {scope}
+      </div>
+    );
   }
-  const button = scanId ? (
-    <form action={openPullRequest}>
-      <input type="hidden" name="scanId" value={scanId} />
-      <SubmitButton pendingText="Queuing…">{pr?.status === "failed" ? "Retry PR" : "Open PR"}</SubmitButton>
-    </form>
-  ) : (
-    <span className={`text-xs ${mutedClass}`} title="Scan the candidate first; the PR carries its diff">
-      scan first
-    </span>
+  return pr.error ? <ErrorText>{pr.error}</ErrorText> : null;
+}
+
+/**
+ * The PR requests for one candidate, and the button that requests another once
+ * it is scanned. With more than one workload on the image, the button offers a
+ * choice of which to move, so one instance can try a version before the rest.
+ */
+function PrCell({
+  prs,
+  scanId,
+  workloads,
+}: {
+  prs: PullRequest[];
+  scanId: number | null;
+  workloads: { namespace: string; kind: string; name: string }[];
+}) {
+  const allOpen = prs.some(
+    (p) => p.workloads == null && p.status !== "failed" && (p.pr_state == null || p.pr_state === "open" || p.pr_state === "draft"),
   );
+  const unique = [...new Map(workloads.map((w) => [workloadKey(w), w])).values()];
   return (
-    <div>
-      {button}
-      {pr?.status === "failed" && pr.error && <ErrorText>{pr.error}</ErrorText>}
+    <div className="space-y-1">
+      {prs.map((p) => (
+        <PrState key={p.id} pr={p} />
+      ))}
+      {!scanId ? (
+        prs.length === 0 && (
+          <span className={`text-xs ${mutedClass}`} title="Scan the candidate first; the PR carries its diff">
+            scan first
+          </span>
+        )
+      ) : allOpen || unique.length === 0 ? null : (
+        <form action={openPullRequest} className="space-y-1">
+          <input type="hidden" name="scanId" value={scanId} />
+          {unique.length > 1 && (
+            <details className="text-xs">
+              <summary className={`cursor-pointer ${mutedClass}`}>for all {unique.length} workloads</summary>
+              <div className="mt-1 space-y-0.5">
+                {unique.map((w) => (
+                  <label key={workloadKey(w)} className="flex items-center gap-1.5 whitespace-nowrap">
+                    <input type="hidden" name="allWorkloads" value={workloadKey(w)} />
+                    <input type="checkbox" name="workload" value={workloadKey(w)} defaultChecked />
+                    {w.namespace}/{w.name}
+                  </label>
+                ))}
+              </div>
+            </details>
+          )}
+          <SubmitButton pendingText="Queuing…">{prs.some((p) => p.status === "failed") ? "Retry PR" : "Open PR"}</SubmitButton>
+        </form>
+      )}
     </div>
   );
 }

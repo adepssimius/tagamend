@@ -1,6 +1,14 @@
 import { parseImageRef } from "../registry/hosts";
 import { parseTag } from "../registry/tag-shape";
 
+/** The Kubernetes object a reference sits in, read from its YAML document. */
+export interface Owner {
+  kind: string;
+  name: string;
+  /** From the object, else from the nearest kustomization.yaml's namespace:. */
+  namespace: string | null;
+}
+
 export interface Edit {
   path: string;
   /** 1-based. */
@@ -9,6 +17,8 @@ export interface Edit {
   after: string;
   /** The running tag this line had. */
   fromTag: string;
+  /** The object the line belongs to; a Kustomization for an images: entry. */
+  owner: Owner | null;
 }
 
 export interface Skipped {
@@ -16,6 +26,7 @@ export interface Skipped {
   line: number;
   text: string;
   reason: string;
+  owner?: Owner | null;
 }
 
 export interface Target {
@@ -96,7 +107,7 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
       const raw = m[3]!;
       const noDigest = raw.includes("@") ? raw.slice(0, raw.indexOf("@")) : raw;
       const newRef = pin ? `${noDigest}@${pin}` : `${noDigest.slice(0, noDigest.length - ref.tag!.length)}${to}`;
-      edits.push({ path, line: i + 1, before: text, after: `${m[1]}${m[2]}${newRef}${m[2]}${m[4]}`, fromTag: ref.tag! });
+      edits.push({ path, line: i + 1, before: text, after: `${m[1]}${m[2]}${newRef}${m[2]}${m[4]}`, fromTag: ref.tag!, owner: null });
     });
 
     // Split form: sibling keys in one mapping, found by matching indent.
@@ -139,7 +150,7 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
       const to = decide(path, tagLine.idx + 1, tagText, tagLine.value || null, null);
       if (!to) return;
       const after = tagText.replace(new RegExp(`(tag:\\s*["']?)${escapeRe(tagLine.value)}`), `$1${to}`);
-      edits.push({ path, line: tagLine.idx + 1, before: tagText, after, fromTag: tagLine.value });
+      edits.push({ path, line: tagLine.idx + 1, before: tagText, after, fromTag: tagLine.value, owner: null });
     });
 
     if (/(^|\/)kustomization\.ya?ml$/.test(path)) {
@@ -172,19 +183,73 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
           const d = keys.get("digest");
           if (d) {
             const dText = lines[d.idx]!;
-            edits.push({ path, line: d.idx + 1, before: dText, after: dText.replace(d.value, pin), fromTag: newTag.value });
+            edits.push({ path, line: d.idx + 1, before: dText, after: dText.replace(d.value, pin), fromTag: newTag.value, owner: null });
           } else {
             const indent = tagText.slice(0, tagText.length - tagText.trimStart().length);
-            edits.push({ path, line: newTag.idx + 1, before: tagText, after: `${tagText}\n${indent}digest: ${pin}`, fromTag: newTag.value });
+            edits.push({ path, line: newTag.idx + 1, before: tagText, after: `${tagText}\n${indent}digest: ${pin}`, fromTag: newTag.value, owner: null });
           }
           return;
         }
         const after = tagText.replace(new RegExp(`(newTag:\\s*["']?)${escapeRe(newTag.value)}`), `$1${to}`);
-        edits.push({ path, line: newTag.idx + 1, before: tagText, after, fromTag: newTag.value });
+        edits.push({ path, line: newTag.idx + 1, before: tagText, after, fromTag: newTag.value, owner: null });
       });
     }
   }
+  for (const e of edits) e.owner = ownerOf(files, e.path, e.line);
+  for (const k of skipped) k.owner = ownerOf(files, k.path, k.line);
   return { edits, skipped };
+}
+
+/**
+ * The object a line belongs to: the `kind` and `metadata.name`/`namespace` of
+ * the YAML document (between `---` separators) that contains it. A namespace
+ * the object does not set comes from the nearest kustomization.yaml above it.
+ */
+export function ownerOf(files: Map<string, string>, path: string, line: number): Owner | null {
+  const lines = files.get(path)?.split("\n");
+  if (!lines) return null;
+  let start = line - 1;
+  while (start > 0 && !/^---\s*$/.test(lines[start - 1]!)) start--;
+  let end = line - 1;
+  while (end < lines.length - 1 && !/^---\s*$/.test(lines[end + 1]!)) end++;
+  let kind: string | null = null;
+  let name: string | null = null;
+  let namespace: string | null = null;
+  let inMeta = false;
+  for (let i = start; i <= end; i++) {
+    const l = lines[i]!;
+    const top = /^(\w+):\s*(["']?)([^\s"'#]*)\2/.exec(l);
+    if (top) {
+      inMeta = top[1] === "metadata";
+      if (top[1] === "kind") kind = top[3]!;
+      continue;
+    }
+    const meta = inMeta && /^ {2}(name|namespace):\s*(["']?)([^\s"'#]+)\2/.exec(l);
+    if (meta) {
+      if (meta[1] === "name" && !name) name = meta[3]!;
+      if (meta[1] === "namespace" && !namespace) namespace = meta[3]!;
+    }
+  }
+  // kind: is optional in a kustomization.yaml.
+  if (!kind && /(^|\/)kustomization\.ya?ml$/.test(path)) kind = "Kustomization";
+  if (!kind) return null;
+  if (kind === "Kustomization" && !name) name = path.replace(/\/?kustomization\.ya?ml$/, "") || ".";
+  if (!name) return null;
+  if (!namespace) namespace = kustomizeNamespace(files, path);
+  return { kind, name, namespace };
+}
+
+function kustomizeNamespace(files: Map<string, string>, path: string): string | null {
+  const parts = path.split("/").slice(0, -1);
+  for (let n = parts.length; n >= 0; n--) {
+    const dir = parts.slice(0, n).join("/");
+    for (const f of ["kustomization.yaml", "kustomization.yml"]) {
+      const k = files.get(dir ? `${dir}/${f}` : f);
+      const m = k && /^namespace:\s*(["']?)([^\s"'#]+)\1/m.exec(k);
+      if (m) return m[2]!;
+    }
+  }
+  return null;
 }
 
 /** Applies line edits to file contents; returns only the files that changed. */

@@ -7,17 +7,50 @@ import { kevFor } from "../queries/kev";
 import { getScanPage } from "../queries/scan";
 import type { WorkerContext } from "../worker-context";
 import { type GitHub, gitHubClient } from "./github";
-import { applyEdits, findImageEdits } from "./locate";
+import { applyEdits, type Edit, findImageEdits, type Owner, type Skipped } from "./locate";
 import { buildPrContent } from "./pr-body";
 import { readTarGz } from "./tar";
 
 const isYaml = (p: string) => /\.ya?ml$/.test(p);
 
 /** Branch names GitHub accepts: `tagamend/<app>-<tag>`. */
-export function branchName(repository: string, toTag: string, pinDigest?: string): string {
+export function branchName(repository: string, toTag: string, pinDigest?: string, workloads?: string[]): string {
   const clean = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
   const pin = pinDigest ? `-${pinDigest.replace(/^sha256:/, "").slice(0, 12)}` : "";
-  return `tagamend/${clean(repository.split("/").pop()!)}-${clean(toTag)}${pin}`;
+  const only = workloads?.length ? `-for-${clean([...new Set(workloads)].sort().join("-")).slice(0, 40)}` : "";
+  return `tagamend/${clean(repository.split("/").pop()!)}-${clean(toTag)}${pin}${only}`;
+}
+
+/**
+ * Keeps only the edits that belong to the chosen workloads. A line in another
+ * workload's object is left alone. A line shared by several workloads (a
+ * Kustomize images: entry, Helm values) is left alone too when any workload it
+ * covers was not chosen, since moving it would move them all.
+ */
+export function narrowToWorkloads(
+  found: { edits: Edit[]; skipped: Skipped[] },
+  chosen: { namespace: string; kind: string; name: string }[],
+  all: { namespace: string; kind: string; name: string }[],
+): { edits: Edit[]; skipped: Skipped[] } {
+  const isChosen = (o: Owner) =>
+    chosen.some((w) => w.kind === o.kind && w.name === o.name && (o.namespace == null || o.namespace === w.namespace));
+  const isWorkload = (o: Owner) => all.some((w) => w.kind === o.kind && w.name === o.name);
+  const everything = chosen.length === new Set(all.map((w) => `${w.namespace}/${w.kind}/${w.name}`)).size;
+  const edits: Edit[] = [];
+  const skipped = [...found.skipped];
+  for (const e of found.edits) {
+    const leave = (reason: string) => skipped.push({ path: e.path, line: e.line, text: e.before.trim(), reason, owner: e.owner });
+    if (e.owner && isWorkload(e.owner)) {
+      if (isChosen(e.owner)) edits.push(e);
+      else leave(`${e.owner.namespace ?? "?"}/${e.owner.name} was not chosen`);
+    } else if (everything) {
+      edits.push(e);
+    } else {
+      const where = e.owner ? `${e.owner.kind} ${e.owner.name}` : "this file";
+      leave(`${where} sets the tag for more workloads than were chosen; moving one alone needs its own image entry`);
+    }
+  }
+  return { edits, skipped };
 }
 
 export interface PrQueueDeps {
@@ -92,7 +125,11 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
   const github = deps.github ?? gitHubClient(repo, config.GITHUB_TOKEN!);
 
   const image = await db.selectFrom("images").selectAll().where("id", "=", req.image_id).executeTakeFirstOrThrow();
-  const live = await liveWorkloads(db, { imageIds: [image.id] });
+  const allLive = await liveWorkloads(db, { imageIds: [image.id] });
+  const chosen = req.workloads ? (JSON.parse(req.workloads) as string[]) : null;
+  const key = (w: { namespace: string; kind: string; name: string }) => `${w.namespace}/${w.kind}/${w.name}`;
+  const live = chosen ? allLive.filter((w) => chosen.includes(key(w))) : allLive;
+  if (chosen && live.length === 0) throw new Error(`none of ${chosen.join(", ")} still runs this image`);
   const fromTags = [...new Set(live.map((w) => w.tag).filter((t): t is string => !!t))];
   if (fromTags.length === 0) throw new Error("no running workload has a tag to move");
 
@@ -103,13 +140,14 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
   const files = readTarGz(await github.tarball(baseSha), isYaml);
   // The same tag at a newer digest (a moved floating tag): pin the digest.
   const pinDigest = fromTags.includes(req.to_tag) ? req.to_digest : undefined;
-  const { edits, skipped } = findImageEdits(files, {
+  const found = findImageEdits(files, {
     registry: image.registry,
     repository: image.repository,
     fromTags,
     toTag: req.to_tag,
     pinDigest,
   });
+  const { edits, skipped } = chosen ? narrowToWorkloads(found, live, allLive) : found;
   const partial = { edits: JSON.stringify(edits), skipped: JSON.stringify(skipped) };
   if (edits.length === 0) {
     const why = skipped.length
@@ -136,9 +174,10 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
     requestedBy: req.requested_by,
     exploited: new Set(kev.keys()),
     pinned: !!pinDigest,
+    onlyWorkloads: chosen ? [...new Set(live.map((w) => `${w.namespace}/${w.name}`))] : undefined,
   });
 
-  let branch = branchName(image.repository, req.to_tag, pinDigest);
+  let branch = branchName(image.repository, req.to_tag, pinDigest, chosen ? live.map((w) => w.name) : undefined);
   const open = await github.findOpenPr(branch);
   if (open) return { ...partial, branch, pr_number: open.number, pr_url: open.url };
   if (await github.branchExists(branch)) branch = `${branch}-${req.id}`;

@@ -151,7 +151,7 @@ describe("findImageEdits", () => {
 
   it("refuses to apply an edit to a line that changed", () => {
     expect(() =>
-      applyEdits(files, [{ path: "apps/books/deployment.yaml", line: 6, before: "nope", after: "x", fromTag: "1" }]),
+      applyEdits(files, [{ path: "apps/books/deployment.yaml", line: 6, before: "nope", after: "x", fromTag: "1", owner: null }]),
     ).toThrow("changed since it was read");
   });
 });

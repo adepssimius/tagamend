@@ -137,6 +137,11 @@ export interface PullRequestsTable {
   branch: string | null;
   pr_number: number | null;
   pr_url: string | null;
+  /**
+   * JSON text: the workloads the PR moves, as ["namespace/Kind/name", ...].
+   * Null means every workload of the image.
+   */
+  workloads: string | null;
   /** GitHub's view of the PR, refreshed while it is open. */
   pr_state: PullRequestState | null;
   pr_state_checked_at: Timestamp | null;
