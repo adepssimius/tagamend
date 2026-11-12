@@ -9,6 +9,8 @@ import {
   sortTags,
   summariesForScans,
   vulnsForDigests,
+  type CveCounts,
+  cveCounts,
 } from "./common";
 
 export interface ImageVulnRow extends Vulnerability {
@@ -21,6 +23,8 @@ export interface ImageTagRow extends Tag {
   diff: DiffCounts | null;
   /** The newest GitOps PR request for this tag. */
   pr: PullRequest | null;
+  /** CVE counts of the scanned candidate, counted like `runningCounts`. Null until scanned. */
+  counts: CveCounts | null;
 }
 
 export interface ImagePage {
@@ -34,6 +38,8 @@ export interface ImagePage {
   tags: ImageTagRow[];
   /** Every live workload runs the image by digest, with no tag. */
   pinnedByDigest: boolean;
+  /** CVEs across the running digests: each CVE once, at its worst severity. */
+  runningCounts: CveCounts;
   recentScans: (Scan & { diff: DiffCounts | null })[];
 }
 
@@ -78,6 +84,9 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
   const vulns = [...grouped.values()].sort(bySeverity);
 
   const tagScans = tags.map((t) => (t.digest ? (scansByDigest.get(scanKey(imageId, t.digest)) ?? null) : null));
+  const resultIds = [...new Set(tagScans.flatMap((s) => (s?.status === "done" && s.result_digest_id != null ? [s.result_digest_id] : [])))];
+  const resultVulns = await vulnsForDigests(db, resultIds);
+  const countsByDigest = new Map(resultIds.map((id) => [id, cveCounts(resultVulns.filter((v) => v.digest_id === id))]));
   const summaries = await summariesForScans(
     db,
     [...tagScans.filter((s) => s !== null), ...recent],
@@ -93,10 +102,17 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
     tags: sortTags(
       tags.map((t, i) => {
         const scan = tagScans[i] ?? null;
-        return { ...t, scan, diff: scan ? (summaries.get(scan.id) ?? null) : null, pr: prByTag.get(t.tag) ?? null };
+        return {
+          ...t,
+          scan,
+          diff: scan ? (summaries.get(scan.id) ?? null) : null,
+          pr: prByTag.get(t.tag) ?? null,
+          counts: scan?.status === "done" && scan.result_digest_id != null ? (countsByDigest.get(scan.result_digest_id) ?? null) : null,
+        };
       }),
     ),
     pinnedByDigest: live.length > 0 && live.every((w) => w.tag == null),
+    runningCounts: cveCounts(rawVulns),
     recentScans: recent.map((s) => ({ ...s, diff: summaries.get(s.id) ?? null })),
   };
 }

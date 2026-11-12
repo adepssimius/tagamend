@@ -172,3 +172,29 @@ export function runningDigestsByImage(workloads: Pick<Workload, "image_id" | "di
   }
   return new Map([...out].map(([k, v]) => [k, [...v].sort((a, b) => a - b)]));
 }
+
+export interface CveCounts {
+  critical: number;
+  high: number;
+  medium: number;
+}
+
+/**
+ * Counts CVEs the way the Overview does: each vuln_id once, at the worst
+ * severity any of its findings gives it. Used for the running image and for
+ * each scanned candidate, so the two compare like for like.
+ */
+export function cveCounts(vulns: { vuln_id: string; severity: string }[]): CveCounts {
+  const worst = new Map<string, string>();
+  for (const v of vulns) {
+    const cur = worst.get(v.vuln_id);
+    worst.set(v.vuln_id, cur ? worstSeverity(cur, v.severity) : v.severity);
+  }
+  const out = { critical: 0, high: 0, medium: 0 };
+  for (const s of worst.values()) {
+    if (s === "CRITICAL") out.critical++;
+    else if (s === "HIGH") out.high++;
+    else if (s === "MEDIUM") out.medium++;
+  }
+  return out;
+}

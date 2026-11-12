@@ -146,6 +146,25 @@ for (const { name, url } of testDatabases()) {
       expect(totals.tagsChecked).toBe(3);
     });
 
+    it("image page counts the running image and each scanned candidate the same way", async () => {
+      db = await freshDb(url);
+      const img = await upsertImage(db, "ghcr.io", "a/b");
+      const run = await digest(db, img, "sha256:run", [f("CVE-1", "x", "HIGH"), f("CVE-1", "y", "CRITICAL"), f("CVE-2", "x", "MEDIUM")]);
+      const cand = await digest(db, img, "sha256:cand", [f("CVE-2", "x", "MEDIUM"), f("CVE-3", "x", "HIGH"), f("CVE-3", "y", "HIGH")], "candidate");
+      await workload(db, img, run, "w1", { tag: "1.0" });
+      await tag(db, img, "1.1", "sha256:cand");
+      await tag(db, img, "1.2", "sha256:unscanned");
+      await scan(db, img, "1.1", "sha256:cand", "done", cand);
+
+      const page = (await getImagePage(db, img))!;
+      // CVE-1 once, as CRITICAL; CVE-3 once despite two packages.
+      expect(page.runningCounts).toEqual({ critical: 1, high: 0, medium: 1 });
+      expect(Object.fromEntries(page.tags.map((t) => [t.tag, t.counts]))).toEqual({
+        "1.1": { critical: 0, high: 1, medium: 1 },
+        "1.2": null,
+      });
+    });
+
     it("the namespace filter narrows the digests that count", async () => {
       db = await freshDb(url);
       const img = await upsertImage(db, "ghcr.io", "a/b");

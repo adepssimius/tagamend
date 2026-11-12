@@ -13,6 +13,7 @@ import {
   ScanStatusBadge,
   Section,
   SeverityBadge,
+  SeverityCount,
   ShortDigest,
   Table,
 } from "@/components/ui";
@@ -32,7 +33,9 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   const page = await getImagePage(await getDb(), imageId);
   const prsEnabled = !!getConfig().GITOPS_REPO;
   if (!page) notFound();
-  const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, recentScans } = page;
+  const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, runningCounts, recentScans } = page;
+  const liveWorkloads = workloads.filter((w) => !w.gone_at);
+  const runningTags = [...new Set(liveWorkloads.map((w) => w.tag ?? "(digest)"))].sort();
   const candidates = tags.filter((t) => t.is_candidate);
   const others = tags.filter((t) => !t.is_candidate);
   const manyDigests = runningDigests.length > 1;
@@ -42,6 +45,26 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
       <h1 className="break-all text-lg">
         <ImageName registry={image.registry} repository={image.repository} />
       </h1>
+      <dl className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded border border-zinc-200 bg-zinc-200 text-sm sm:grid-cols-5 dark:border-zinc-800 dark:bg-zinc-800">
+        {(
+          [
+            ["Running", <span key="t" className="font-mono text-base">{runningTags.join(", ") || "—"}</span>],
+            ["Workloads", liveWorkloads.length],
+            ["Critical", <SeverityCount key="c" severity="CRITICAL" n={runningCounts.critical} />],
+            ["High", <SeverityCount key="h" severity="HIGH" n={runningCounts.high} />],
+            ["Medium", <SeverityCount key="m" severity="MEDIUM" n={runningCounts.medium} />],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="min-w-0 bg-white px-3 py-2 dark:bg-zinc-950">
+            <dt className={`text-xs ${mutedClass}`}>{label}</dt>
+            <dd className="truncate text-lg font-semibold tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className={`mt-1 text-xs ${mutedClass}`}>
+        Each CVE counts once, at its worst severity across the running digests. Candidates below are counted the same way.
+      </p>
+
       {image.tag_sync_error && (
         <div className="mt-2 rounded border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/40">
           <p className="text-xs font-medium text-red-800 dark:text-red-300">Tag sync failed</p>
@@ -112,11 +135,31 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                 <th>Why</th>
                 <th>Digest</th>
                 <th>First seen</th>
+                <th className="text-right">Crit</th>
+                <th className="text-right">High</th>
+                <th className="text-right">Med</th>
                 <th>Scan</th>
                 {prsEnabled && <th>PR</th>}
               </tr>
             </thead>
             <tbody>
+              <tr className="bg-zinc-50 dark:bg-zinc-900/50">
+                <td className="font-mono text-xs">{runningTags.join(", ")}</td>
+                <td className={`text-xs ${mutedClass}`}>running now</td>
+                <td>{runningDigests.length === 1 ? <ShortDigest digest={runningDigests[0]!.digest} /> : <span className={`text-xs ${mutedClass}`}>{runningDigests.length} digests</span>}</td>
+                <td />
+                <td className="text-right">
+                  <SeverityCount severity="CRITICAL" n={runningCounts.critical} />
+                </td>
+                <td className="text-right">
+                  <SeverityCount severity="HIGH" n={runningCounts.high} />
+                </td>
+                <td className="text-right">
+                  <SeverityCount severity="MEDIUM" n={runningCounts.medium} />
+                </td>
+                <td />
+                {prsEnabled && <td />}
+              </tr>
               {candidates.map((t) => (
                 <tr key={t.id}>
                   <td className="font-mono text-xs">{t.tag}</td>
@@ -125,6 +168,18 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                   <td>
                     <Ago iso={t.first_seen_at} />
                   </td>
+                  {(["critical", "high", "medium"] as const).map((k) => (
+                    <td key={k} className="whitespace-nowrap text-right">
+                      {t.counts ? (
+                        <>
+                          <SeverityCount severity={k.toUpperCase()} n={t.counts[k]} />
+                          <Delta n={t.counts[k] - runningCounts[k]} />
+                        </>
+                      ) : (
+                        <span className={`text-xs ${mutedClass}`}>—</span>
+                      )}
+                    </td>
+                  ))}
                   <td>
                     <div className="flex flex-wrap items-center gap-2">
                       {t.scan && (t.scan.status !== "done" || !t.diff) && (
@@ -303,5 +358,15 @@ function PrCell({ pr, scanId }: { pr: PullRequest | null; scanId: number | null 
       {button}
       {pr?.status === "failed" && pr.error && <ErrorText>{pr.error}</ErrorText>}
     </div>
+  );
+}
+
+/** The change against the running image: fewer is green, more is red. */
+function Delta({ n }: { n: number }) {
+  if (n === 0) return null;
+  return (
+    <span className={`ml-1 text-xs tabular-nums ${n < 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+      {n < 0 ? `−${-n}` : `+${n}`}
+    </span>
   );
 }
