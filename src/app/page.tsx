@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/auth";
 import { Ago, Empty, ImageName, linkClass, mutedClass, ScanStatusBadge, SeverityCount, Table } from "@/components/ui";
 import { getDb } from "@/lib/db";
-import { getOverview, type MinSeverity, type OverviewOptions, SORT_KEYS, type SortKey } from "@/lib/queries/overview";
+import { getOverview, type MinSeverity, type OverviewOptions, type OverviewRow, SORT_KEYS, type SortKey } from "@/lib/queries/overview";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +59,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-lg font-semibold">Images in use</h1>
         <p className={`text-xs ${mutedClass}`}>
+          Tags checked: {totals.tagsChecked} of {totals.images} images ·{" "}
           Last report sync: <Ago iso={lastReportSync?.finished_at} />
           {lastReportSync?.ok === 0 && (
             <Link href="/status" className="ml-1 text-red-700 hover:underline dark:text-red-400">
@@ -204,7 +205,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                         )}
                       </div>
                     ) : (
-                      <span className={`text-xs ${mutedClass}`}>—</span>
+                      <NoCandidate imageId={r.imageId} check={r.tagCheck} />
                     )}
                   </td>
                 </tr>
@@ -219,3 +220,21 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
 const inputClass =
   "rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+
+/** Why a row has no candidate: not checked yet, failed, pinned, or checked and current. */
+function NoCandidate({ imageId, check }: { imageId: number; check: OverviewRow["tagCheck"] }) {
+  if (check.pinned) return <span className={`text-xs ${mutedClass}`}>pinned by digest</span>;
+  if (check.error) {
+    return (
+      <Link href={`/images/${imageId}`} className="text-xs text-red-700 hover:underline dark:text-red-400" title={check.error}>
+        check failed
+      </Link>
+    );
+  }
+  if (!check.checkedAt) return <span className={`text-xs ${mutedClass}`}>not checked yet</span>;
+  return (
+    <span className={`text-xs ${mutedClass}`}>
+      {check.floating ? "no new digest" : "up to date"} · <Ago iso={check.checkedAt} />
+    </span>
+  );
+}

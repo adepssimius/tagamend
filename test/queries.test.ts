@@ -122,6 +122,30 @@ for (const { name, url } of testDatabases()) {
       expect(namespaces).toEqual(["ns1", "ns2"]);
     });
 
+    it("overview says whether tag discovery has checked each image", async () => {
+      db = await freshDb(url);
+      const unchecked = await upsertImage(db, "ghcr.io", "a/unchecked");
+      const current = await upsertImage(db, "ghcr.io", "a/current");
+      const floating = await upsertImage(db, "ghcr.io", "a/floating");
+      const failed = await upsertImage(db, "ghcr.io", "a/failed");
+      const pinned = await upsertImage(db, "ghcr.io", "a/pinned");
+      for (const [img, tag] of [[unchecked, "1.0"], [current, "1.0"], [floating, "latest"], [failed, "1.0"], [pinned, null]] as const) {
+        await workload(db, img, await digest(db, img, `sha256:${img}`, []), `w${img}`, { tag });
+      }
+      await db.updateTable("images").set({ last_tag_sync_at: "2026-11-12T00:00:00.000Z" }).where("id", "in", [current, floating, failed]).execute();
+      await db.updateTable("images").set({ tag_sync_error: "429 Too Many Requests" }).where("id", "=", failed).execute();
+
+      const { rows, totals } = await getOverview(db, { sort: "image" });
+      expect(Object.fromEntries(rows.map((r) => [r.repository, r.tagCheck]))).toEqual({
+        "a/current": { checkedAt: "2026-11-12T00:00:00.000Z", error: null, pinned: false, floating: false },
+        "a/failed": { checkedAt: "2026-11-12T00:00:00.000Z", error: "429 Too Many Requests", pinned: false, floating: false },
+        "a/floating": { checkedAt: "2026-11-12T00:00:00.000Z", error: null, pinned: false, floating: true },
+        "a/pinned": { checkedAt: null, error: null, pinned: true, floating: false },
+        "a/unchecked": { checkedAt: null, error: null, pinned: false, floating: false },
+      });
+      expect(totals.tagsChecked).toBe(3);
+    });
+
     it("the namespace filter narrows the digests that count", async () => {
       db = await freshDb(url);
       const img = await upsertImage(db, "ghcr.io", "a/b");

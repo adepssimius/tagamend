@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import type { DB } from "../db";
 import type { ScanStatus } from "../db/schema";
+import { parseTag } from "../registry/tag-shape";
 import {
   type DiffCounts,
   latestScansByDigest,
@@ -39,6 +40,15 @@ export interface OverviewRow {
   high: number;
   medium: number;
   candidateCount: number;
+  /** Tag discovery state for the image, so "no candidate" can say why. */
+  tagCheck: {
+    checkedAt: string | null;
+    error: string | null;
+    /** Every running tag is a digest pin: nothing to compare. */
+    pinned: boolean;
+    /** Every running tag is floating (latest, stable): only digest drift is checked. */
+    floating: boolean;
+  };
   candidate: {
     tag: string;
     reason: string | null;
@@ -57,6 +67,8 @@ export interface Overview {
     medium: number;
     withCandidate: number;
     candidatesScanned: number;
+    /** Images tag discovery has checked at least once. */
+    tagsChecked: number;
   };
   /** Namespaces with live workloads, for the filter. Not affected by filters. */
   namespaces: string[];
@@ -172,6 +184,7 @@ export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<O
       digests: new Set(ws.map((w) => w.digest_id).filter((d) => d != null)).size,
       ...c,
       candidateCount: candidateCount.get(img.id) ?? 0,
+      tagCheck: tagCheckOf(img, ws),
       candidate: t
         ? {
             tag: t.tag,
@@ -224,8 +237,21 @@ function comparator(sort: SortKey | undefined, dir: "asc" | "desc" | undefined) 
   return (a: OverviewRow, b: OverviewRow) => sign * base(a, b);
 }
 
+function tagCheckOf(
+  img: { last_tag_sync_at: string | null; tag_sync_error: string | null },
+  ws: { tag: string | null }[],
+): OverviewRow["tagCheck"] {
+  const tags = ws.map((w) => w.tag).filter((t): t is string => t != null);
+  return {
+    checkedAt: img.last_tag_sync_at,
+    error: img.tag_sync_error,
+    pinned: ws.length > 0 && tags.length === 0,
+    floating: tags.length > 0 && tags.every((t) => parseTag(t).kind !== "version"),
+  };
+}
+
 function emptyTotals(): Overview["totals"] {
-  return { images: 0, workloads: 0, critical: 0, high: 0, medium: 0, withCandidate: 0, candidatesScanned: 0 };
+  return { images: 0, workloads: 0, critical: 0, high: 0, medium: 0, withCandidate: 0, candidatesScanned: 0, tagsChecked: 0 };
 }
 
 function totalsOf(rows: OverviewRow[]): Overview["totals"] {
@@ -238,6 +264,7 @@ function totalsOf(rows: OverviewRow[]): Overview["totals"] {
     t.medium += r.medium;
     if (r.candidate) t.withCandidate++;
     if (r.candidate?.scan?.status === "done") t.candidatesScanned++;
+    if (r.tagCheck.checkedAt) t.tagsChecked++;
   }
   return t;
 }

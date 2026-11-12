@@ -92,7 +92,15 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
         }
       >
         {candidates.length === 0 ? (
-          <Empty>{pinnedByDigest ? "Pinned by digest: no candidates." : "No newer tags found."}</Empty>
+          <Empty>
+            {pinnedByDigest
+              ? "Pinned by digest: no candidates."
+              : image.tag_sync_error
+                ? "The last tag check failed, so there may be newer tags."
+                : image.last_tag_sync_at
+                  ? "No newer tags found."
+                  : "Not checked yet. Tag discovery checks a few images each minute."}
+          </Empty>
         ) : (
           <Table>
             <thead>
