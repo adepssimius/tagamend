@@ -23,7 +23,7 @@ import { getDb } from "@/lib/db";
 import type { PullRequest } from "@/lib/db/schema";
 import { getImagePage } from "@/lib/queries/image";
 import { kevFor } from "@/lib/queries/kev";
-import { openPullRequest, scanTag } from "./actions";
+import { openPullRequest, scanRunningBuild, scanTag } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   const page = await getImagePage(db, imageId);
   const prsEnabled = !!getConfig().GITOPS_REPO;
   if (!page) notFound();
-  const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, runningCounts, recentScans } = page;
+  const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, runningCounts, staleBuilds, recentScans } = page;
   const kev = await kevFor(db, vulns.map((v) => v.vuln_id));
   const exploited = new Set(vulns.map((v) => v.vuln_id).filter((id) => kev.has(id))).size;
   // Known-exploited first; the query's severity order holds within each group.
@@ -77,6 +77,56 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
       <p className={`mt-1 text-xs ${mutedClass}`}>
         Each CVE counts once, at its worst severity across the running digests. Candidates below are counted the same way.
       </p>
+
+      {staleBuilds.map((b) => (
+        <div
+          key={b.podDigest}
+          className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs dark:border-amber-800 dark:bg-amber-950/40"
+        >
+          <p className="font-medium text-amber-900 dark:text-amber-200">
+            The pod runs an older build of <span className="font-mono">{b.tag ?? "this image"}</span>:{" "}
+            <ShortDigest digest={b.podDigest} />.
+          </p>
+          {b.scanned ? (
+            <p className="mt-1 text-amber-900/80 dark:text-amber-200/80">
+              The CVEs below are for that build. What <span className="font-mono">{b.tag}</span> points to now
+              {b.reportDigest && (
+                <>
+                  {" "}
+                  (<ShortDigest digest={b.reportDigest} />)
+                </>
+              )}{" "}
+              shows up as a candidate after the next tag check. Scan it to see the diff, then open a PR that pins the
+              digest. A restart alone may not update it: a node with the tag cached reuses the old build unless the pod
+              pulls Always.
+            </p>
+          ) : (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-amber-900/80 dark:text-amber-200/80">
+              <p>
+                The CVEs below are for what <span className="font-mono">{b.tag}</span> points to now
+                {b.reportDigest && (
+                  <>
+                    {" "}
+                    (<ShortDigest digest={b.reportDigest} />)
+                  </>
+                )}
+                , not for what runs. trivy-operator scans the tag, not the pod&apos;s build.
+              </p>
+              {b.scan && b.scan.status !== "failed" ? (
+                <Link href={`/scans/${b.scan.id}`}>
+                  <ScanStatusBadge status={b.scan.status} />
+                </Link>
+              ) : (
+                <form action={scanRunningBuild}>
+                  <input type="hidden" name="imageId" value={image.id} />
+                  <input type="hidden" name="digest" value={b.podDigest} />
+                  <SubmitButton pendingText="Queuing…">Scan the running build</SubmitButton>
+                </form>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
 
       {image.tag_sync_error && (
         <div className="mt-2 rounded border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/40">

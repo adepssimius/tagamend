@@ -30,3 +30,26 @@ export async function openPullRequest(formData: FormData): Promise<void> {
   revalidatePath(`/images/${pr.image_id}`);
   revalidatePath("/status");
 }
+
+/**
+ * Scans the build a pod actually runs when it is older than what its tag
+ * points to now. The digest must be one a workload of this image reports.
+ */
+export async function scanRunningBuild(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const imageId = Number(formData.get("imageId"));
+  const digest = String(formData.get("digest") ?? "");
+  if (!Number.isInteger(imageId)) throw new Error("scanRunningBuild: bad imageId");
+  const db = await getDb();
+  const w = await db
+    .selectFrom("workloads")
+    .select(["tag"])
+    .where("image_id", "=", imageId)
+    .where("pod_digest", "=", digest)
+    .where("gone_at", "is", null)
+    .executeTakeFirst();
+  if (!w) throw new Error("scanRunningBuild: no running workload of this image uses that digest");
+  await queueScan(db, { imageId, tag: w.tag ?? digest, digest, requestedBy: user.username });
+  revalidatePath(`/images/${imageId}`);
+  revalidatePath("/status");
+}

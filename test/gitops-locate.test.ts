@@ -39,6 +39,7 @@ images:
 `,
   ],
   ["apps/tv/deployment.yaml", "          image: ghcr.io/example/tv\n"],
+  ["apps/nvr/deployment.yaml", `          image: ghcr.io/example/nvr:stable\n          image: ghcr.io/example/nvr:stable@sha256:${"c".repeat(64)}\n`],
   [
     "infra/cache/helmrelease.yaml",
     `  values:
@@ -112,6 +113,29 @@ describe("findImageEdits", () => {
     expect(skipped).toEqual([]);
     const movies = findImageEdits(files, { registry: "ghcr.io", repository: "example/movies", fromTags: ["1"], toTag: "2" });
     expect(movies).toEqual({ edits: [], skipped: [expect.objectContaining({ reason: "pinned by digest" })] });
+  });
+
+  it("pins a moved floating tag to a digest, replacing an older pin", () => {
+    const pin = `sha256:${"d".repeat(64)}`;
+    const { edits, skipped } = findImageEdits(files, {
+      registry: "ghcr.io",
+      repository: "example/nvr",
+      fromTags: ["stable"],
+      toTag: "stable",
+      pinDigest: pin,
+    });
+    expect(edits.map((e) => e.after.trim())).toEqual([`image: ghcr.io/example/nvr:stable@${pin}`, `image: ghcr.io/example/nvr:stable@${pin}`]);
+    expect(skipped).toEqual([]);
+    const again = findImageEdits(applyEdits(files, edits), { registry: "ghcr.io", repository: "example/nvr", fromTags: ["stable"], toTag: "stable", pinDigest: pin });
+    expect(again.edits).toEqual([]);
+    expect(again.skipped.map((x) => x.reason)).toEqual([`already pinned to ${pin.slice(0, 19)}`, `already pinned to ${pin.slice(0, 19)}`]);
+  });
+
+  it("pins a Kustomize image by adding a digest key", () => {
+    const pin = `sha256:${"e".repeat(64)}`;
+    const { edits } = findImageEdits(files, { registry: "ghcr.io", repository: "example/tv", fromTags: ["4.0.16.2946"], toTag: "4.0.16.2946", pinDigest: pin });
+    const out = applyEdits(files, edits).get("apps/tv/kustomization.yaml")!;
+    expect(out).toContain(`    newTag: 4.0.16.2946\n    digest: ${pin}\n`);
   });
 
   it("only moves running tags", () => {

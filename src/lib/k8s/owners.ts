@@ -26,6 +26,21 @@ export interface ReportSource {
   listReports(page: { limit: number; continue?: string }): Promise<{ items: unknown[]; continue?: string }>;
   /** Reads one object. Returns null when it does not exist (404); throws on any other error. */
   getObject(ref: ObjectRef): Promise<K8sObject | null>;
+  /**
+   * The image digest each running container actually uses. Optional: a source
+   * without it (older tests) leaves `pod_digest` unknown.
+   */
+  listPodImages?(): Promise<PodImage[]>;
+}
+
+export interface PodImage {
+  namespace: string;
+  /** The pod itself and its controller, so a report on either can match. */
+  podName: string;
+  owner: { kind: string; name: string } | null;
+  container: string;
+  /** `sha256:...` from the container status imageID. */
+  digest: string;
 }
 
 /**

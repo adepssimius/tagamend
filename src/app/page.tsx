@@ -174,6 +174,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                     {r.tags.map((t) => (
                       <div key={t ?? "@"}>{t ?? <span className={mutedClass}>pinned by digest</span>}</div>
                     ))}
+                    {r.staleBuild && (
+                      <div className="text-xs text-amber-700 dark:text-amber-300" title="A pod runs an older build than this tag points to now">
+                        older build running
+                      </div>
+                    )}
                   </td>
                   <td className="text-right tabular-nums" title={r.namespaces.join(", ")}>
                     {r.workloads}

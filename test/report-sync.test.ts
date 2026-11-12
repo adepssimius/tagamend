@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getConfig } from "@/lib/config";
 import type { DB } from "@/lib/db";
-import { getKv } from "@/lib/db/store";
+import { getKv, storeDigest } from "@/lib/db/store";
 import { syncReports } from "@/lib/k8s/report-sync";
 import { KV } from "@/lib/kv-keys";
 import type { Log } from "@/lib/log";
@@ -182,6 +182,59 @@ for (const { name, url } of testDatabases()) {
       expect(byContainer.psql).toBeUndefined();
       expect(detail).toMatchObject({ skipped: 1, skippedReasons: { resource_gone: 1 }, ownerLookupErrors: 1 });
       expect(warnings.map((w) => w.msg)).toEqual(["report sync: owner lookup failed"]);
+    });
+
+    it("notices a pod on an older build, and treats that build as running once it is scanned", async () => {
+      db = await freshDb(url);
+      const reports = fixtureReports();
+      const source = new FakeSource(reports, fixtureOwners());
+      const api = reportNamed(reports, "replicaset-demo-api-7c4967f8db-demo-api");
+      const reported = api.report.artifact.digest as string;
+      const older = `sha256:${"9".repeat(64)}`;
+      source.podImages = [
+        { namespace: "team-a", podName: "demo-api-7c4967f8db-abcde", owner: { kind: "ReplicaSet", name: "demo-api-7c4967f8db" }, container: "demo-api", digest: older },
+      ];
+      const { ctx } = context(db);
+
+      const first = await syncReports(ctx, { source });
+      expect(first.staleBuilds).toBe(1);
+      const row = async () =>
+        db
+          .selectFrom("workloads")
+          .innerJoin("image_digests", "image_digests.id", "workloads.digest_id")
+          .select(["workloads.pod_digest", "workloads.report_digest", "image_digests.digest as running"])
+          .where("workloads.name", "=", "demo-api")
+          .executeTakeFirstOrThrow();
+      // Not scanned yet: the CVEs shown are still the report's.
+      expect(await row()).toEqual({ pod_digest: older, report_digest: reported, running: reported });
+
+      const imageId = (await db.selectFrom("workloads").select("image_id").where("name", "=", "demo-api").executeTakeFirstOrThrow()).image_id;
+      await storeDigest(db, imageId, "candidate", { digest: older, osFamily: null, osName: null, scannedAt: "2026-11-01T00:00:00Z", reportUpdatedAt: null, scannerVersion: null, findings: [] }, ["HIGH"]);
+      await syncReports(ctx, { source });
+      expect(await row()).toEqual({ pod_digest: older, report_digest: reported, running: older });
+
+      // Pod restarted onto the reported build: no longer stale.
+      source.podImages = [{ ...source.podImages[0]!, digest: reported }];
+      const after = await syncReports(ctx, { source });
+      expect(after.staleBuilds).toBeUndefined();
+      expect(await row()).toEqual({ pod_digest: null, report_digest: reported, running: reported });
+    });
+
+    it("rechecks an image's tags as soon as its running tag changes", async () => {
+      db = await freshDb(url);
+      const reports = fixtureReports();
+      const source = new FakeSource(reports, fixtureOwners());
+      const { ctx } = context(db);
+      await syncReports(ctx, { source });
+      await db.updateTable("images").set({ last_tag_sync_at: "2026-11-12T00:00:00Z" }).execute();
+
+      const api = reportNamed(source.reports as RawReport[], "replicaset-demo-api-7c4967f8db-demo-api");
+      api.report.artifact.tag = "next";
+      api.report.updateTimestamp = "2030-01-01T00:00:00Z";
+      const detail = await syncReports(ctx, { source });
+      expect(detail.tagChanges).toBe(1);
+      const unsynced = await db.selectFrom("images").select("repository").where("last_tag_sync_at", "is", null).execute();
+      expect(unsynced.map((r) => r.repository)).toEqual(["example/demo-api"]);
     });
 
     it("skips unchanged reports, marks unseen workloads gone, and revives them", async () => {

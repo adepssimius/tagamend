@@ -144,5 +144,6 @@ describe("branchName", () => {
   it("makes names git accepts", () => {
     expect(branchName("linuxserver/sonarr", "4.0.15.2941-ls290")).toBe("tagamend/sonarr-4.0.15.2941-ls290");
     expect(branchName("a/b", "v1+build")).toBe("tagamend/b-v1-build");
+    expect(branchName("a/nvr", "stable", `sha256:${"f".repeat(64)}`)).toBe("tagamend/nvr-stable-ffffffffffff");
   });
 });

@@ -25,6 +25,13 @@ export interface Target {
   /** The tags the image runs with now. Only references to one of these move. */
   fromTags: string[];
   toTag: string;
+  /**
+   * Pin mode: keep the tag and pin it to this digest (`tag@sha256:...`). Used
+   * when the candidate is the same tag at a newer digest, such as `stable`
+   * after it moved. A digest pin makes the node pull that build; a moved tag
+   * alone does not, when the node has the old one cached.
+   */
+  pinDigest?: string;
 }
 
 const IMAGE_LINE = /^(\s*(?:-\s+)?image:\s*)(["']?)([^\s"'#]+)\2(.*)$/;
@@ -58,9 +65,16 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
     registry === target.registry && repository === target.repository;
 
   /** Decides one reference; returns the new tag or records why not. */
+  const pin = target.pinDigest;
   const decide = (path: string, line: number, text: string, tag: string | null, digest: string | null): string | null => {
     const skip = (reason: string) => (skipped.push({ path, line, text: text.trim(), reason }), null);
     if (FLUX_MARKER.test(text)) return skip("Flux image automation manages this line");
+    if (pin) {
+      if (!tag) return skip("no tag");
+      if (tag !== target.toTag) return skip(`tag ${tag} is not ${target.toTag}`);
+      if (digest === pin) return skip(`already pinned to ${pin.slice(0, 19)}`);
+      return target.toTag;
+    }
     if (digest) return skip("pinned by digest");
     if (!tag) return skip("no tag");
     if (tag === target.toTag) return skip(`already ${target.toTag}`);
@@ -80,7 +94,8 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
       const to = decide(path, i + 1, text, ref.tag, ref.digest);
       if (!to) return;
       const raw = m[3]!;
-      const newRef = `${raw.slice(0, raw.length - ref.tag!.length)}${to}`;
+      const noDigest = raw.includes("@") ? raw.slice(0, raw.indexOf("@")) : raw;
+      const newRef = pin ? `${noDigest}@${pin}` : `${noDigest.slice(0, noDigest.length - ref.tag!.length)}${to}`;
       edits.push({ path, line: i + 1, before: text, after: `${m[1]}${m[2]}${newRef}${m[2]}${m[4]}`, fromTag: ref.tag! });
     });
 
@@ -117,6 +132,10 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
         return;
       }
       const tagText = lines[tagLine.idx]!;
+      if (pin) {
+        skipped.push({ path, line: tagLine.idx + 1, text: tagText.trim(), reason: "Helm repository/tag values have no digest key to pin" });
+        return;
+      }
       const to = decide(path, tagLine.idx + 1, tagText, tagLine.value || null, null);
       if (!to) return;
       const after = tagText.replace(new RegExp(`(tag:\\s*["']?)${escapeRe(tagLine.value)}`), `$1${to}`);
@@ -148,6 +167,18 @@ export function findImageEdits(files: Map<string, string>, target: Target): { ed
         const tagText = lines[newTag.idx]!;
         const to = decide(path, newTag.idx + 1, tagText, newTag.value || null, keys.get("digest")?.value || null);
         if (!to) return;
+        if (pin) {
+          // Kustomize pins with a digest: key beside newTag.
+          const d = keys.get("digest");
+          if (d) {
+            const dText = lines[d.idx]!;
+            edits.push({ path, line: d.idx + 1, before: dText, after: dText.replace(d.value, pin), fromTag: newTag.value });
+          } else {
+            const indent = tagText.slice(0, tagText.length - tagText.trimStart().length);
+            edits.push({ path, line: newTag.idx + 1, before: tagText, after: `${tagText}\n${indent}digest: ${pin}`, fromTag: newTag.value });
+          }
+          return;
+        }
         const after = tagText.replace(new RegExp(`(newTag:\\s*["']?)${escapeRe(newTag.value)}`), `$1${to}`);
         edits.push({ path, line: newTag.idx + 1, before: tagText, after, fromTag: newTag.value });
       });

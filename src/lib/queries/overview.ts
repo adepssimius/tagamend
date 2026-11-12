@@ -41,6 +41,8 @@ export interface OverviewRow {
   medium: number;
   /** CVEs in CISA's Known Exploited Vulnerabilities catalog. */
   exploited: number;
+  /** A pod runs an older build than its tag points to now. */
+  staleBuild: boolean;
   candidateCount: number;
   /** Tag discovery state for the image, so "no candidate" can say why. */
   tagCheck: {
@@ -192,6 +194,7 @@ export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<O
       namespaces: [...new Set(ws.map((w) => w.namespace))].sort(),
       digests: new Set(ws.map((w) => w.digest_id).filter((d) => d != null)).size,
       ...c,
+      staleBuild: ws.some((w) => w.pod_digest != null),
       candidateCount: candidateCount.get(img.id) ?? 0,
       tagCheck: tagCheckOf(img, ws),
       candidate: t

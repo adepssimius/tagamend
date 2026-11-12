@@ -14,9 +14,10 @@ import { readTarGz } from "./tar";
 const isYaml = (p: string) => /\.ya?ml$/.test(p);
 
 /** Branch names GitHub accepts: `tagamend/<app>-<tag>`. */
-export function branchName(repository: string, toTag: string): string {
+export function branchName(repository: string, toTag: string, pinDigest?: string): string {
   const clean = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
-  return `tagamend/${clean(repository.split("/").pop()!)}-${clean(toTag)}`;
+  const pin = pinDigest ? `-${pinDigest.replace(/^sha256:/, "").slice(0, 12)}` : "";
+  return `tagamend/${clean(repository.split("/").pop()!)}-${clean(toTag)}${pin}`;
 }
 
 export interface PrQueueDeps {
@@ -100,11 +101,14 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
 
   const baseSha = await github.branchSha(config.GITOPS_BRANCH);
   const files = readTarGz(await github.tarball(baseSha), isYaml);
+  // The same tag at a newer digest (a moved floating tag): pin the digest.
+  const pinDigest = fromTags.includes(req.to_tag) ? req.to_digest : undefined;
   const { edits, skipped } = findImageEdits(files, {
     registry: image.registry,
     repository: image.repository,
     fromTags,
     toTag: req.to_tag,
+    pinDigest,
   });
   const partial = { edits: JSON.stringify(edits), skipped: JSON.stringify(skipped) };
   if (edits.length === 0) {
@@ -131,9 +135,10 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
     scanUrl: base ? `${base}/scans/${req.scan_id}` : null,
     requestedBy: req.requested_by,
     exploited: new Set(kev.keys()),
+    pinned: !!pinDigest,
   });
 
-  let branch = branchName(image.repository, req.to_tag);
+  let branch = branchName(image.repository, req.to_tag, pinDigest);
   const open = await github.findOpenPr(branch);
   if (open) return { ...partial, branch, pr_number: open.number, pr_url: open.url };
   if (await github.branchExists(branch)) branch = `${branch}-${req.id}`;

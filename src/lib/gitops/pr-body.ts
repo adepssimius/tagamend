@@ -49,17 +49,22 @@ export function buildPrContent(opts: {
   requestedBy: string | null;
   /** CVE ids in CISA's Known Exploited Vulnerabilities catalog. */
   exploited?: Set<string>;
+  /** The tag stays; the PR pins it to `toDigest`. */
+  pinned?: boolean;
 }): PrContent {
   const exploited = opts.exploited ?? new Set<string>();
   const app = opts.repository.split("/").pop()!;
   const from = opts.fromTags.join(", ");
-  const title = `${app}: bump ${from} to ${opts.toTag}`;
+  const short = opts.toDigest.replace(/^sha256:/, "").slice(0, 12);
+  const title = opts.pinned ? `${app}: pin ${opts.toTag} to ${short}` : `${app}: bump ${from} to ${opts.toTag}`;
   const { fixed, stillPresent, introduced } = opts.diff;
   const upstream = stillPresent.filter((s) => s.fixAvailableUpstream).length;
 
   const lines: string[] = [];
   lines.push(
-    `Moves \`${opts.registry}/${opts.repository}\` from \`${from}\` to \`${opts.toTag}\` (\`${opts.toDigest.slice(0, 19)}\`).`,
+    opts.pinned
+      ? `Pins \`${opts.registry}/${opts.repository}:${opts.toTag}\` to \`${opts.toDigest}\`, the build the tag points to now. The running pods are on an older build of the same tag. A digest pin makes the next rollout pull this build; a restart alone reuses a cached \`${opts.toTag}\` on nodes that have one.`
+      : `Moves \`${opts.registry}/${opts.repository}\` from \`${from}\` to \`${opts.toTag}\` (\`${opts.toDigest.slice(0, 19)}\`).`,
   );
   lines.push("");
   lines.push("## What the candidate scan shows");

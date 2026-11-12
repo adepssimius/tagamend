@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { K8sObject, ObjectRef, ReportSource } from "@/lib/k8s/owners";
+import type { K8sObject, ObjectRef, PodImage, ReportSource } from "@/lib/k8s/owners";
 
 /**
  * VulnerabilityReports in the exact shape trivy-operator writes, and the
@@ -49,6 +49,12 @@ export class FakeSource implements ReportSource {
     const start = cont ? Number(cont) : 0;
     const end = start + limit;
     return { items: this.reports.slice(start, end), continue: end < this.reports.length ? String(end) : undefined };
+  }
+
+  /** When set, listPodImages returns these. */
+  podImages?: PodImage[];
+  async listPodImages() {
+    return this.podImages ?? [];
   }
 
   async getObject(ref: ObjectRef) {

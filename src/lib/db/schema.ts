@@ -67,6 +67,16 @@ export interface WorkloadsTable {
   tag: string | null;
   digest_id: number | null;
   last_seen_at: Timestamp;
+  /**
+   * The digest trivy-operator scanned: what the tag pointed to when it
+   * scanned, which can be newer than what the pod runs.
+   */
+  report_digest: string | null;
+  /**
+   * The digest a pod of this workload actually runs (its container imageID),
+   * when it differs from `report_digest`. Null when they match or are unknown.
+   */
+  pod_digest: string | null;
   /** Set when a sync no longer sees the workload for 24h; cleared if it returns. */
   gone_at: Timestamp | null;
 }

@@ -40,6 +40,11 @@ export interface ImagePage {
   pinnedByDigest: boolean;
   /** CVEs across the running digests: each CVE once, at its worst severity. */
   runningCounts: CveCounts;
+  /**
+   * Pods on an older build than their report scanned: the tag moved after they
+   * started. `scan` is the newest scan of that build, if any.
+   */
+  staleBuilds: { tag: string | null; podDigest: string; reportDigest: string | null; scanned: boolean; scan: Scan | null }[];
   recentScans: (Scan & { diff: DiffCounts | null })[];
 }
 
@@ -113,6 +118,22 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
     ),
     pinnedByDigest: live.length > 0 && live.every((w) => w.tag == null),
     runningCounts: cveCounts(rawVulns),
+    staleBuilds: [
+      ...new Map(
+        live
+          .filter((w) => w.pod_digest)
+          .map((w) => [
+            w.pod_digest!,
+            {
+              tag: w.tag,
+              podDigest: w.pod_digest!,
+              reportDigest: w.report_digest,
+              scanned: runningDigests.some((d) => d.digest === w.pod_digest),
+              scan: scansByDigest.get(scanKey(imageId, w.pod_digest!)) ?? null,
+            },
+          ]),
+      ).values(),
+    ],
     recentScans: recent.map((s) => ({ ...s, diff: summaries.get(s.id) ?? null })),
   };
 }

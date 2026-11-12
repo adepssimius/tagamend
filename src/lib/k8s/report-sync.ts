@@ -38,6 +38,11 @@ export interface ReportSyncDetail extends Record<string, unknown> {
   /** Objects read from the API to resolve owners. */
   ownerReads: number;
   pages: number;
+  /** Workloads whose running tag changed; their images' tags are rechecked next tick. */
+  tagChanges?: number;
+  /** Workloads whose pods run an older build than the one their report scanned. */
+  staleBuilds?: number;
+  podListError?: string;
   aborted?: boolean;
 }
 
@@ -73,6 +78,25 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
   let newest: { at: string; version: string } | undefined;
   const syncStart = clock();
   const seenAt = syncStart.toISOString();
+
+  // What pods actually run, by the resource a report names (pod or its controller).
+  const podDigests = new Map<string, Set<string>>();
+  if (source.listPodImages) {
+    try {
+      for (const p of await source.listPodImages()) {
+        for (const [kind, name] of [["Pod", p.podName], ...(p.owner ? [[p.owner.kind, p.owner.name]] : [])] as const) {
+          const k = `${p.namespace}/${kind}/${name}/${p.container}`;
+          let set = podDigests.get(k);
+          if (!set) podDigests.set(k, (set = new Set()));
+          set.add(p.digest);
+        }
+      }
+    } catch (e) {
+      // Without pod data the sync still works; only stale-build detection is lost.
+      log.warn("report sync: could not list pods", { error: errorMessage(e) });
+      detail.podListError = errorMessage(e);
+    }
+  }
 
   let cont: string | undefined;
   do {
@@ -111,6 +135,24 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
       const { digestId, changed } = await storeDigest(db, imageId, "operator", r.scan, config.SEVERITIES);
       if (changed) detail.changedDigests++;
 
+      // A tag that moved after the pod started: the report describes what the
+      // tag points to now, the pod runs an older build. Once that build has been
+      // scanned (a candidate scan of its digest), it is what counts as running.
+      const running = podDigests.get(`${res.namespace}/${res.kind}/${res.name}/${res.container}`);
+      // Any pod on another build counts: a DaemonSet can be half updated.
+      const podDigest = [...(running ?? [])].filter((d) => d !== r.scan.digest).sort()[0] ?? null;
+      let runningDigestId = digestId;
+      if (podDigest) {
+        detail.staleBuilds = (detail.staleBuilds ?? 0) + 1;
+        const scanned = await db
+          .selectFrom("image_digests")
+          .select("id")
+          .where("image_id", "=", imageId)
+          .where("digest", "=", podDigest)
+          .executeTakeFirst();
+        if (scanned) runningDigestId = scanned.id;
+      }
+
       if (r.scan.scannerVersion && (!newest || r.scan.scannedAt > newest.at)) {
         newest = { at: r.scan.scannedAt, version: r.scan.scannerVersion };
       }
@@ -124,10 +166,27 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
         container: res.container,
         image_id: imageId,
         tag: r.tag,
-        digest_id: digestId,
+        digest_id: runningDigestId,
         last_seen_at: seenAt,
+        report_digest: r.scan.digest,
+        pod_digest: podDigest,
         gone_at: null,
       };
+      // A running tag that changed (an upgrade rolled out) makes the image's
+      // candidates stale, so its tags are checked again on the next tick
+      // instead of after the full interval.
+      const before = await db
+        .selectFrom("workloads")
+        .select("tag")
+        .where("namespace", "=", row.namespace)
+        .where("kind", "=", row.kind)
+        .where("name", "=", row.name)
+        .where("container", "=", row.container)
+        .executeTakeFirst();
+      if (before && before.tag !== row.tag) {
+        await db.updateTable("images").set({ last_tag_sync_at: null }).where("id", "=", imageId).execute();
+        detail.tagChanges = (detail.tagChanges ?? 0) + 1;
+      }
       await db
         .insertInto("workloads")
         .values(row)
@@ -137,6 +196,8 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
             tag: row.tag,
             digest_id: row.digest_id,
             last_seen_at: row.last_seen_at,
+            report_digest: row.report_digest,
+            pod_digest: row.pod_digest,
             gone_at: null,
           }),
         )
