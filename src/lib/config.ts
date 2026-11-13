@@ -41,6 +41,8 @@ const schema = z.object({
   REPORT_SYNC_INTERVAL: duration.default(5 * 60_000),
   TAG_SYNC_INTERVAL: duration.default(6 * 3_600_000),
   REGISTRY_CREDENTIALS_DIR: z.string().default("/secrets/registries"),
+  // The helm binary chart sync renders charts with.
+  HELM_BIN: z.string().default("helm"),
   // CISA's Known Exploited Vulnerabilities feed, loaded daily. Empty turns it off.
   KEV_URL: z.string().default("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"),
   // For scan Jobs, which read credentials from Secrets in SCAN_NAMESPACE rather
