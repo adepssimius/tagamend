@@ -3,14 +3,13 @@ import { getConfig } from "@/lib/config";
 import { type DB, now } from "@/lib/db";
 import { storeDigest, upsertImage } from "@/lib/db/store";
 import { queuePullRequest } from "@/lib/gitops/enqueue";
-import type { GitHub } from "@/lib/gitops/github";
 import { refreshPrStates } from "@/lib/gitops/pr-state";
 import { branchName, runPrQueue } from "@/lib/gitops/queue";
 import { log } from "@/lib/log";
 import type { Finding } from "@/lib/trivy/finding";
 import type { WorkerContext } from "@/lib/worker-context";
 import { freshDb, testDatabases } from "./helpers";
-import { repoTarball } from "./tar-writer";
+import { FakeGitHub as BaseFakeGitHub } from "./fake-github";
 
 const f = (vulnId: string, severity: Finding["severity"], fixedVersion: string | null = null): Finding => ({
   vulnId,
@@ -23,42 +22,14 @@ const f = (vulnId: string, severity: Finding["severity"], fixedVersion: string |
   link: null,
 });
 
-const REPO_FILES = {
+const REPO_FILES: Record<string, string> = {
   "apps/books/deployment.yaml": "      containers:\n        - image: ghcr.io/example/books:2.32.1\n",
   "README.md": "not yaml",
 };
 
-class FakeGitHub implements GitHub {
-  commits: { branch: string; message: string; files: Map<string, string> }[] = [];
-  prs: { head: string; base: string; title: string; body: string }[] = [];
-  existingBranches = new Set<string>();
-  constructor(private files: Record<string, string> = REPO_FILES) {}
-  async branchSha() {
-    return "base-sha";
-  }
-  async tarball() {
-    return repoTarball(this.files);
-  }
-  async commitToNewBranch(o: { baseSha: string; branch: string; message: string; files: Map<string, string> }) {
-    this.commits.push(o);
-    this.existingBranches.add(o.branch);
-    return "new-sha";
-  }
-  async findOpenPr() {
-    return null;
-  }
-  async openPr(o: { head: string; base: string; title: string; body: string }) {
-    this.prs.push(o);
-    return { number: 7, url: "https://github.com/o/r/pull/7" };
-  }
-  async branchExists(b: string) {
-    return this.existingBranches.has(b);
-  }
-  states = new Map<number, "open" | "draft" | "merged" | "closed">();
-  stateCalls = 0;
-  async prState(n: number) {
-    this.stateCalls++;
-    return this.states.get(n) ?? "open";
+class FakeGitHub extends BaseFakeGitHub {
+  constructor(files: Record<string, string> = REPO_FILES) {
+    super(files);
   }
 }
 

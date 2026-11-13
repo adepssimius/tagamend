@@ -7,6 +7,7 @@ import { kevFor } from "../queries/kev";
 import { getScanPage } from "../queries/scan";
 import type { WorkerContext } from "../worker-context";
 import { type GitHub, gitHubClient } from "./github";
+import { runChartPrQueue } from "./chart-queue";
 import { applyEdits, type Edit, findImageEdits, type Owner, type Skipped } from "./locate";
 import { buildPrContent } from "./pr-body";
 import { readTarGz } from "./tar";
@@ -65,6 +66,9 @@ export interface PrQueueDeps {
  * A request that finds nothing to change fails with the references it saw, so
  * an image that comes from a chart's defaults says so instead of opening an
  * empty PR.
+ *
+ * When no image tag PR is queued, the tick opens a queued chart upgrade PR
+ * instead (chart-queue.ts), so both share this loop and its pace.
  */
 export async function runPrQueue(ctx: WorkerContext, deps: PrQueueDeps = {}): Promise<Record<string, unknown>> {
   const { db, config } = ctx;
@@ -76,7 +80,7 @@ export async function runPrQueue(ctx: WorkerContext, deps: PrQueueDeps = {}): Pr
     .orderBy("id")
     .limit(1)
     .executeTakeFirst();
-  if (!next) return { idle: true };
+  if (!next) return runChartPrQueue(ctx, deps);
 
   const claimed = await db
     .updateTable("pull_requests")

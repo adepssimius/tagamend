@@ -239,7 +239,8 @@ export function ownerOf(files: Map<string, string>, path: string, line: number):
   return { kind, name, namespace };
 }
 
-function kustomizeNamespace(files: Map<string, string>, path: string): string | null {
+/** The namespace: of the nearest kustomization.yaml at or above a file's directory. */
+export function kustomizeNamespace(files: Map<string, string>, path: string): string | null {
   const parts = path.split("/").slice(0, -1);
   for (let n = parts.length; n >= 0; n--) {
     const dir = parts.slice(0, n).join("/");
