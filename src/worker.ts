@@ -9,6 +9,7 @@ import { runPrQueue } from "./lib/gitops/queue";
 import { syncKev } from "./lib/kev/sync";
 import { autoScan } from "./lib/scan/auto";
 import { syncExposure } from "./lib/exposure/sync";
+import { syncCharts } from "./lib/charts/sync";
 import type { SyncName } from "./lib/db/schema";
 import type { WorkerContext } from "./lib/worker-context";
 
@@ -58,6 +59,8 @@ const loops = [
   loop("auto_scan", 60_000, autoScan, false),
   // Ingresses and Services change rarely; settings changes show within this interval.
   loop("exposure_sync", 5 * 60_000, (c) => syncExposure(c)),
+  // Picks the HelmReleases that are due, a few per tick, like tag discovery.
+  loop("chart_sync", 60_000, syncCharts, false),
 ];
 const pruner = setInterval(() => pruneSyncRuns(db).catch((e) => log.warn("prune failed", { error: errorMessage(e) })), 3_600_000);
 

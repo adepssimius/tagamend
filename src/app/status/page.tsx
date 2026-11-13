@@ -29,6 +29,7 @@ const LOOP_NAMES: Record<SyncName, string> = {
   kev_sync: "Known exploited (CISA)",
   auto_scan: "Automatic scans",
   exposure_sync: "Exposure",
+  chart_sync: "Chart upgrades",
 };
 
 const warnClass = "font-semibold text-amber-700 dark:text-amber-300";

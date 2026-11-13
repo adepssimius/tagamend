@@ -12,7 +12,7 @@ type Bool = number;
 
 export type DigestSource = "operator" | "candidate";
 export type ScanStatus = "queued" | "running" | "done" | "failed";
-export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync" | "auto_scan" | "exposure_sync";
+export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync" | "auto_scan" | "exposure_sync" | "chart_sync";
 export type PullRequestStatus = "queued" | "running" | "opened" | "failed";
 /** The PR on GitHub, once opened. */
 export type PullRequestState = "open" | "draft" | "merged" | "closed";
@@ -175,6 +175,77 @@ export interface KevTable {
   short_description: string | null;
 }
 
+/** One row per Flux HelmRelease: the chart it installs and where from. */
+export interface ChartsTable {
+  id: Generated<number>;
+  /** The HelmRelease's namespace and name. */
+  namespace: string;
+  name: string;
+  /** Chart name in its repository. */
+  chart: string;
+  /** spec.chart.spec.version as written: an exact version, or a range such as "*". */
+  version: string;
+  /** The version Flux last installed (status.lastAttemptedRevision), when known. */
+  installed_version: string | null;
+  source_kind: "HelmRepository" | "OCIRepository";
+  /** https://... for a classic repository, oci://... for OCI. */
+  source_url: string;
+  last_sync_at: Timestamp | null;
+  sync_error: string | null;
+  /** JSON text: ChartImage[] the installed version renders, with these values. */
+  current_images: string | null;
+  /** Notes about the render, such as a valuesFrom Secret that was skipped. */
+  render_note: string | null;
+  /** Set when the HelmRelease no longer exists. */
+  gone_at: Timestamp | null;
+}
+
+/** A newer chart version, rendered with the HelmRelease's values. */
+export interface ChartCandidatesTable {
+  id: Generated<number>;
+  chart_id: number;
+  version: string;
+  app_version: string | null;
+  first_seen_at: Timestamp;
+  is_candidate: Bool;
+  reason: string | null;
+  rendered_at: Timestamp | null;
+  render_error: string | null;
+  /** JSON text: ChartImageChange[], images that differ from current_images. */
+  changes: string | null;
+  /**
+   * JSON text: PinnedImage[], images the values pin with a tag: key, so the
+   * chart bump leaves them as they are; each says what the chart's own
+   * default would be.
+   */
+  pinned: string | null;
+}
+
+export type ChartPrStatus = "queued" | "running" | "opened" | "failed";
+
+/** A request to open a PR that bumps a HelmRelease's chart version. */
+export interface ChartPullRequestsTable {
+  id: Generated<number>;
+  chart_id: number;
+  candidate_id: number;
+  to_version: string;
+  /** 1: also move pinned image tags to the chart's defaults. */
+  update_pins: Bool;
+  status: ChartPrStatus;
+  requested_by: string | null;
+  requested_at: Timestamp;
+  started_at: Timestamp | null;
+  finished_at: Timestamp | null;
+  branch: string | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  pr_state: PullRequestState | null;
+  pr_state_checked_at: Timestamp | null;
+  /** JSON text: the edits made, [{path, line, before, after}]. */
+  edits: string | null;
+  error: string | null;
+}
+
 /** Small key/value facts, such as the Trivy server version. */
 export interface KvTable {
   key: string;
@@ -192,6 +263,9 @@ export interface Database {
   sync_runs: SyncRunsTable;
   pull_requests: PullRequestsTable;
   kev: KevTable;
+  charts: ChartsTable;
+  chart_candidates: ChartCandidatesTable;
+  chart_pull_requests: ChartPullRequestsTable;
   kv: KvTable;
 }
 
@@ -206,6 +280,9 @@ export type ScanUpdate = Updateable<ScansTable>;
 export type SyncRun = Selectable<SyncRunsTable>;
 export type PullRequest = Selectable<PullRequestsTable>;
 export type Kev = Selectable<KevTable>;
+export type Chart = Selectable<ChartsTable>;
+export type ChartCandidate = Selectable<ChartCandidatesTable>;
+export type ChartPullRequest = Selectable<ChartPullRequestsTable>;
 
 // Silence "unused" for ColumnType in case a later table needs it.
 export type _Unused = ColumnType<never>;
