@@ -226,7 +226,14 @@ for (const { name, url } of testDatabases()) {
       expect(await repos({ minSeverity: "CRITICAL" })).toEqual(["a"]);
       expect(await repos({ minSeverity: "HIGH" })).toEqual(["a", "b"]);
       expect(await repos({ minSeverity: "MEDIUM" })).toEqual(["a", "b", "c"]);
-      expect(await repos({ hasCandidate: true })).toEqual(["c"]);
+      expect(await repos({ needs: ["candidate"] })).toEqual(["c"]);
+      // b runs an older build of its tag; a has a known-exploited CVE.
+      await db.updateTable("workloads").set({ pod_digest: "sha256:old" }).where("image_id", "=", b).execute();
+      await db.insertInto("kev").values({ cve_id: "C1", vulnerability_name: null, vendor_project: null, product: null, date_added: "2026-01-01", due_date: null, known_ransomware: 0, short_description: null }).execute();
+      expect(await repos({ needs: ["stale"] })).toEqual(["b"]);
+      expect(await repos({ needs: ["candidate", "stale"] })).toEqual(["b", "c"]);
+      expect(await repos({ exploited: true })).toEqual(["a"]);
+      expect(await repos({ needs: ["candidate", "stale"], exploited: true })).toEqual([]);
       expect(await repos({ sort: "high" })).toEqual(["b", "a", "c"]);
       expect(await repos({ sort: "image", dir: "desc" })).toEqual(["c", "b", "a"]);
     });

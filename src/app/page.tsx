@@ -16,7 +16,12 @@ function parseOptions(sp: SP): OverviewOptions {
   return {
     namespace: one(sp.namespace),
     minSeverity: sev === "CRITICAL" || sev === "HIGH" || sev === "MEDIUM" ? (sev as MinSeverity) : undefined,
-    hasCandidate: one(sp.candidate) === "1",
+    // "candidate=1" is the old single checkbox; keep links to it working.
+    needs: [
+      ...(one(sp.candidate) === "1" ? (["candidate"] as const) : []),
+      ...(one(sp.stale) === "1" ? (["stale"] as const) : []),
+    ],
+    exploited: one(sp.kev) === "1",
     sort: SORT_KEYS.includes(sort as SortKey) ? (sort as SortKey) : undefined,
     dir: dir === "asc" || dir === "desc" ? dir : undefined,
   };
@@ -33,7 +38,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     const p = new URLSearchParams();
     if (opts.namespace) p.set("namespace", opts.namespace);
     if (opts.minSeverity) p.set("severity", opts.minSeverity);
-    if (opts.hasCandidate) p.set("candidate", "1");
+    if (opts.needs?.includes("candidate")) p.set("candidate", "1");
+    if (opts.needs?.includes("stale")) p.set("stale", "1");
+    if (opts.exploited) p.set("kev", "1");
     p.set("sort", key);
     const defaultDir = key === "image" ? "asc" : "desc";
     const current = opts.sort === key ? (opts.dir ?? defaultDir) : undefined;
@@ -52,7 +59,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       </th>
     );
   };
-  const filtered = !!(opts.namespace || opts.minSeverity || opts.hasCandidate);
+  const filtered = !!(opts.namespace || opts.minSeverity || opts.needs?.length || opts.exploited);
 
   return (
     <div>
@@ -114,10 +121,26 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             <option value="MEDIUM">Medium</option>
           </select>
         </label>
-        <label className="flex items-center gap-1.5 pb-1">
-          <input type="checkbox" name="candidate" value="1" defaultChecked={opts.hasCandidate} />
-          Has a candidate
-        </label>
+        <fieldset className="flex flex-col gap-0.5">
+          <legend className={`text-xs ${mutedClass}`}>Needs action (any)</legend>
+          <div className="flex items-center gap-3 pb-1">
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" name="candidate" value="1" defaultChecked={opts.needs?.includes("candidate")} />
+              Has a candidate
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" name="stale" value="1" defaultChecked={opts.needs?.includes("stale")} />
+              Older build running
+            </label>
+          </div>
+        </fieldset>
+        <fieldset className="flex flex-col gap-0.5">
+          <legend className={`text-xs ${mutedClass}`}>And</legend>
+          <label className="flex items-center gap-1.5 pb-1">
+            <input type="checkbox" name="kev" value="1" defaultChecked={opts.exploited} />
+            Known exploited
+          </label>
+        </fieldset>
         {opts.sort && <input type="hidden" name="sort" value={opts.sort} />}
         {opts.dir && <input type="hidden" name="dir" value={opts.dir} />}
         <button type="submit" className={`${inputClass} font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800`}>

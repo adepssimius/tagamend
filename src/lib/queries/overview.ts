@@ -20,7 +20,13 @@ export interface OverviewOptions {
   /** Only workloads in this namespace count: their tags, digests and CVEs. */
   namespace?: string;
   minSeverity?: MinSeverity;
-  hasCandidate?: boolean;
+  /**
+   * Keep images that match ANY of these: a candidate tag, or a pod on an
+   * older build of its tag. Empty or unset keeps everything.
+   */
+  needs?: ("candidate" | "stale")[];
+  /** Keep only images with at least one CVE in CISA's KEV catalog (ANDed with the rest). */
+  exploited?: boolean;
   /** Default: worst first (critical, then high, then medium). */
   sort?: SortKey;
   dir?: "asc" | "desc";
@@ -212,7 +218,11 @@ export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<O
     const min = opts.minSeverity;
     rows = rows.filter((r) => r.critical > 0 || (min !== "CRITICAL" && (r.high > 0 || (min === "MEDIUM" && r.medium > 0))));
   }
-  if (opts.hasCandidate) rows = rows.filter((r) => r.candidate);
+  if (opts.needs?.length) {
+    const needs = opts.needs;
+    rows = rows.filter((r) => (needs.includes("candidate") && !!r.candidate) || (needs.includes("stale") && r.staleBuild));
+  }
+  if (opts.exploited) rows = rows.filter((r) => r.exploited > 0);
   rows.sort(comparator(opts.sort, opts.dir));
 
   return { rows, totals: totalsOf(rows), namespaces, lastReportSync: lastReportSync ?? null };

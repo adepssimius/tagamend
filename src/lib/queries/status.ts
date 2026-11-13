@@ -3,6 +3,7 @@ import type { Image, PullRequest, Scan, SyncName, SyncRun } from "../db/schema";
 import { KV } from "../kv-keys";
 
 export const LOOPS: SyncName[] = ["report_sync", "tag_sync", "scan_queue", "pr_queue", "kev_sync"];
+// auto_scan is not listed: it records nothing when idle and its scans show in the queue.
 
 export interface KvValue {
   value: string;

@@ -12,7 +12,7 @@ type Bool = number;
 
 export type DigestSource = "operator" | "candidate";
 export type ScanStatus = "queued" | "running" | "done" | "failed";
-export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync";
+export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync" | "auto_scan";
 export type PullRequestStatus = "queued" | "running" | "opened" | "failed";
 /** The PR on GitHub, once opened. */
 export type PullRequestState = "open" | "draft" | "merged" | "closed";
