@@ -212,7 +212,9 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
             last_seen_at: row.last_seen_at,
             report_digest: row.report_digest,
             pod_digest: row.pod_digest,
-            managed_by: row.managed_by,
+            // A failed inventory read keeps the last known manager rather than
+            // making every workload unknown for one sync.
+            ...(inventory ? { managed_by: row.managed_by } : {}),
             gone_at: null,
           }),
         )

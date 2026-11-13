@@ -224,6 +224,27 @@ for (const { name, url } of testDatabases()) {
       expect(await row()).toEqual({ pod_digest: null, report_digest: reported, running: reported });
     });
 
+    it("keeps the last known Flux manager when the inventory cannot be read", async () => {
+      db = await freshDb(url);
+      const source = new FakeSource(fixtureReports(), fixtureOwners());
+      let fail = false;
+      Object.assign(source, {
+        listFluxInventory: async () => {
+          if (fail) throw new Error("429");
+          return new Map([["team-a/Deployment/demo-api", "flux-system/apps"]]);
+        },
+      });
+      const { ctx } = context(db);
+      await syncReports(ctx, { source });
+      const managed = async () =>
+        (await db.selectFrom("workloads").select("managed_by").where("name", "=", "demo-api").executeTakeFirstOrThrow()).managed_by;
+      expect(await managed()).toBe("Kustomization flux-system/apps");
+      fail = true;
+      const detail = await syncReports(ctx, { source });
+      expect(detail.fluxInventoryError).toBe("429");
+      expect(await managed()).toBe("Kustomization flux-system/apps");
+    });
+
     it("rechecks an image's tags as soon as its running tag changes", async () => {
       db = await freshDb(url);
       const reports = fixtureReports();
