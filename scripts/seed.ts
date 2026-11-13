@@ -8,7 +8,8 @@
 import { createHash } from "node:crypto";
 import { createDb, type DB, migrate } from "../src/lib/db";
 import { setKv, storeDigest, upsertImage } from "../src/lib/db/store";
-import type { DigestSource, ScanStatus, SyncName } from "../src/lib/db/schema";
+import type { ChartImage, ChartImageChange, PinnedImage } from "../src/lib/charts/types";
+import type { ChartPrStatus, DigestSource, PullRequestState, ScanStatus, SyncName } from "../src/lib/db/schema";
 import { KV } from "../src/lib/kv-keys";
 import type { Finding } from "../src/lib/trivy/finding";
 import type { Severity } from "../src/lib/config";
@@ -117,6 +118,126 @@ async function scan(
     .execute();
 }
 
+/** A rendered chart image. `digestSeed` names the digest, as for tags and scans. */
+function chartImage(kind: string, name: string, field: string, registry: string, repository: string, tag: string, digestSeed: string | null): ChartImage {
+  const host = registry === "index.docker.io" ? "docker.io" : registry;
+  return {
+    key: `${kind}/${name}:${field}`,
+    kind,
+    name,
+    ref: `${host}/${repository}:${tag}`,
+    registry,
+    repository,
+    tag,
+    digest: digestSeed ? sha(digestSeed) : null,
+  };
+}
+const change = (from: ChartImage | null, to: ChartImage | null): ChartImageChange => {
+  const any = (to ?? from)!;
+  return { key: any.key, kind: any.kind, name: any.name, from, to };
+};
+
+async function chart(
+  db: DB,
+  c: {
+    ns: string;
+    name: string;
+    chart: string;
+    version: string;
+    installed?: string | null;
+    sourceKind?: "HelmRepository" | "OCIRepository";
+    sourceUrl: string;
+    images: ChartImage[];
+    syncError?: string;
+    renderNote?: string;
+    gone?: boolean;
+  },
+) {
+  const row = await db
+    .insertInto("charts")
+    .values({
+      namespace: c.ns,
+      name: c.name,
+      chart: c.chart,
+      version: c.version,
+      installed_version: c.installed === undefined ? c.version : c.installed,
+      source_kind: c.sourceKind ?? (c.sourceUrl.startsWith("oci://") ? "OCIRepository" : "HelmRepository"),
+      source_url: c.sourceUrl,
+      last_sync_at: ago(6),
+      sync_error: c.syncError ?? null,
+      current_images: JSON.stringify(c.images),
+      render_note: c.renderNote ?? null,
+      gone_at: c.gone ? ago(60 * 20) : null,
+    })
+    .returning("id")
+    .executeTakeFirstOrThrow();
+  await db
+    .updateTable("workloads")
+    .set({ managed_by: `HelmRelease ${c.ns}/${c.name}` })
+    .where("namespace", "=", c.ns)
+    .where(
+      "name",
+      "in",
+      c.images.map((i) => i.name),
+    )
+    .execute();
+  return row.id;
+}
+
+async function chartCandidate(
+  db: DB,
+  chartId: number,
+  c: { version: string; appVersion?: string; isCandidate?: boolean; reason: string; changes?: ChartImageChange[]; pinned?: PinnedImage[]; renderError?: string; rendered?: boolean },
+) {
+  const rendered = c.rendered ?? c.isCandidate !== false;
+  const row = await db
+    .insertInto("chart_candidates")
+    .values({
+      chart_id: chartId,
+      version: c.version,
+      app_version: c.appVersion ?? null,
+      first_seen_at: ago(60 * 24 * 2),
+      is_candidate: c.isCandidate === false ? 0 : 1,
+      reason: c.reason,
+      rendered_at: rendered ? ago(5) : null,
+      render_error: c.renderError ?? null,
+      changes: rendered && !c.renderError ? JSON.stringify(c.changes ?? []) : null,
+      pinned: rendered && !c.renderError ? JSON.stringify(c.pinned ?? []) : null,
+    })
+    .returning("id")
+    .executeTakeFirstOrThrow();
+  return row.id;
+}
+
+async function chartPr(
+  db: DB,
+  chartId: number,
+  candidateId: number,
+  p: { toVersion: string; status: ChartPrStatus; prNumber?: number; prState?: PullRequestState; error?: string; updatePins?: boolean },
+) {
+  await db
+    .insertInto("chart_pull_requests")
+    .values({
+      chart_id: chartId,
+      candidate_id: candidateId,
+      to_version: p.toVersion,
+      update_pins: p.updatePins ? 1 : 0,
+      status: p.status,
+      requested_by: "ben",
+      requested_at: ago(120),
+      started_at: p.status === "queued" ? null : ago(119),
+      finished_at: p.status === "opened" || p.status === "failed" ? ago(118) : null,
+      branch: p.prNumber ? `tagamend/chart-${chartId}-${p.toVersion}` : null,
+      pr_number: p.prNumber ?? null,
+      pr_url: p.prNumber ? `https://github.com/example/gitops/pull/${p.prNumber}` : null,
+      pr_state: p.prState ?? null,
+      pr_state_checked_at: p.prState ? ago(1) : null,
+      edits: null,
+      error: p.error ?? null,
+    })
+    .execute();
+}
+
 async function syncRun(db: DB, name: SyncName, minutes: number, ok: 0 | 1, detail: object | null, error: string | null = null) {
   await db
     .insertInto("sync_runs")
@@ -141,7 +262,7 @@ async function main() {
   if (existing && !process.argv.includes("--reset")) {
     throw new Error("the database already has images; pass --reset to delete all rows first (npm run seed -- --reset)");
   }
-  for (const t of ["scans", "tags", "workloads", "vulnerabilities", "image_digests", "images", "sync_runs", "kv"] as const) {
+  for (const t of ["chart_pull_requests", "chart_candidates", "charts", "scans", "tags", "workloads", "vulnerabilities", "image_digests", "images", "sync_runs", "kv"] as const) {
     await db.deleteFrom(t).execute();
   }
 
@@ -261,6 +382,117 @@ async function main() {
   const readarrRun = await digest(db, readarr, "operator", "readarr-1", [OPENSSL], 60 * 24);
   await workload(db, { ns: "media", kind: "Deployment", name: "readarr", imageId: readarr, tag: "0.4.0-ls10", digestId: readarrRun, gone: true });
 
+  // Charts: Flux HelmReleases and the chart versions newer than what they install.
+  // ingress-nginx: two candidates; the newest's controller scan is running, and it adds a new image.
+  const ctrl = (tag: string, seed: string | null) =>
+    chartImage("Deployment", "ingress-nginx-controller", "spec.template.spec.containers[0].image", "registry.k8s.io", "ingress-nginx/controller", tag, seed);
+  const certgen = chartImage("Job", "ingress-nginx-admission-create", "spec.template.spec.containers[0].image", "registry.k8s.io", "ingress-nginx/kube-webhook-certgen", "v1.6.1", "certgen-161");
+  const ingressChart = await chart(db, {
+    ns: "ingress",
+    name: "ingress-nginx",
+    chart: "ingress-nginx",
+    version: "4.12.0",
+    sourceUrl: "https://kubernetes.github.io/ingress-nginx",
+    images: [ctrl("v1.12.0", "ingress-1")],
+  });
+  const ingress414 = await chartCandidate(db, ingressChart, {
+    version: "4.14.1",
+    appVersion: "1.14.1",
+    reason: "newer than installed",
+    changes: [change(ctrl("v1.12.0", "ingress-1"), ctrl("v1.14.1", "ingress-114")), change(null, certgen)],
+  });
+  await chartCandidate(db, ingressChart, {
+    version: "4.13.0",
+    appVersion: "1.13.0",
+    reason: "newer than installed",
+    changes: [change(ctrl("v1.12.0", "ingress-1"), ctrl("v1.13.0", "ingress-113"))],
+  });
+  await chartCandidate(db, ingressChart, { version: "4.15.0-beta.1", isCandidate: false, reason: "pre-release", rendered: false });
+  await chartPr(db, ingressChart, ingress414, {
+    toVersion: "4.14.1",
+    status: "failed",
+    error: "clone example/gitops: 403 Resource not accessible by integration",
+  });
+
+  // docs: the newest candidate's nginx is scanned, so the page shows the diff. An open PR.
+  const site = (name: string, tag: string, seed: string | null) =>
+    chartImage("Deployment", name, "spec.template.spec.containers[0].image", "index.docker.io", "library/nginx", tag, seed);
+  const docsChart = await chart(db, {
+    ns: "web",
+    name: "docs",
+    chart: "static-site",
+    version: ">=1.4.0 <2.0.0",
+    installed: "1.4.2",
+    sourceUrl: "oci://ghcr.io/example/charts",
+    images: [site("docs", "1.27.2-alpine", "nginx-b")],
+  });
+  const docs2 = await chartCandidate(db, docsChart, {
+    version: "2.0.0",
+    appVersion: "1.28.1",
+    reason: "newer than installed; outside the written range",
+    changes: [change(site("docs", "1.27.2-alpine", "nginx-b"), site("docs", "1.28.1-alpine", "nginx-128"))],
+  });
+  await chartPr(db, docsChart, docs2, { toVersion: "2.0.0", status: "opened", prNumber: 214, prState: "open" });
+
+  // home-assistant: the values pin the image tag; the candidate's default differs. Also a new sidecar.
+  const haImg = (tag: string, seed: string | null) =>
+    chartImage("StatefulSet", "home-assistant", "spec.template.spec.containers[0].image", "ghcr.io", "home-assistant/home-assistant", tag, seed);
+  const codeServer = chartImage("StatefulSet", "home-assistant", "spec.template.spec.containers[1].image", "ghcr.io", "coder/code-server", "4.96.4", "code-server-4964");
+  const haChart = await chart(db, {
+    ns: "home",
+    name: "home-assistant",
+    chart: "home-assistant",
+    version: "0.2.110",
+    sourceUrl: "https://charts.example.com/stable",
+    images: [haImg("2026.9.1", "ha-1")],
+    renderNote: "valuesFrom Secret home/home-assistant-values was skipped: the worker does not read Secrets. The render uses the inline values only.",
+  });
+  await chartCandidate(db, haChart, {
+    version: "0.3.0",
+    appVersion: "2026.11.0",
+    reason: "newer than installed",
+    changes: [change(null, codeServer)],
+    pinned: [
+      {
+        key: haImg("2026.9.1", null).key,
+        kind: "StatefulSet",
+        name: "home-assistant",
+        valuesPath: ["image", "tag"],
+        pinnedTag: "2026.9.1",
+        chartDefault: haImg("2026.11.0", "ha-3"),
+      },
+    ],
+  });
+  await chartCandidate(db, haChart, {
+    version: "0.2.120",
+    appVersion: "2026.10.2",
+    reason: "newer than installed",
+    renderError: "helm template: values don't meet the specifications of the schema(s): ingress.main.hosts: Invalid type. Expected: array, given: object",
+  });
+
+  // node-exporter: the chart check fails.
+  await chart(db, {
+    ns: "monitoring",
+    name: "node-exporter",
+    chart: "prometheus-node-exporter",
+    version: "4.43.0",
+    installed: null,
+    sourceUrl: "https://prometheus-community.github.io/helm-charts",
+    images: [chartImage("DaemonSet", "node-exporter", "spec.template.spec.containers[0].image", "quay.io", "prometheus/node-exporter", "v1.9.0", "node-1")],
+    syncError: "fetch index.yaml: Get \"https://prometheus-community.github.io/helm-charts/index.yaml\": context deadline exceeded",
+  });
+
+  // valkey: up to date. And a HelmRelease that no longer exists, which must not show.
+  await chart(db, {
+    ns: "iam",
+    name: "valkey",
+    chart: "valkey",
+    version: "0.9.0",
+    sourceUrl: "oci://registry.example.com/charts",
+    images: [chartImage("StatefulSet", "valkey", "spec.template.spec.containers[0].image", "index.docker.io", "valkey/valkey", "latest", "valkey-old")],
+  });
+  await chart(db, { ns: "old", name: "retired", chart: "retired", version: "1.0.0", sourceUrl: "https://charts.example.com/stable", images: [], gone: true });
+
   await db.updateTable("images").set({ last_tag_sync_at: ago(47) }).where("tag_sync_error", "is", null).execute();
 
   for (let i = 8; i >= 0; i--) {
@@ -269,6 +501,7 @@ async function main() {
   await syncRun(db, "tag_sync", 12, 1, { images: 4, registryCalls: 9 });
   await syncRun(db, "tag_sync", 3, 0, null, "1 of 3 images failed: quay.io 401 Unauthorized");
   await syncRun(db, "scan_queue", 1, 1, { started: 1, finished: 0 });
+  await syncRun(db, "chart_sync", 6, 1, { charts: 5, candidates: 5, rendered: 4 });
 
   await setKv(db, KV.trivyReportVersion, "0.76.1");
   await setKv(db, KV.trivyServerVersion, "0.76.2");

@@ -3,6 +3,7 @@ import { requireUser } from "@/auth";
 import { ExposureBadge } from "@/components/exposure";
 import { Ago, Empty, ImageName, linkClass, mutedClass, ScanStatusBadge, SeverityCount, Table } from "@/components/ui";
 import { getDb } from "@/lib/db";
+import { chartsWithCandidate } from "@/lib/queries/charts";
 import { getOverview, type MinSeverity, type OverviewOptions, type OverviewRow, SORT_KEYS, type SortKey } from "@/lib/queries/overview";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   await requireUser();
   const sp = await searchParams;
   const opts = parseOptions(sp);
-  const { rows, totals, namespaces, lastReportSync } = await getOverview(await getDb(), opts);
+  const db = await getDb();
+  const [{ rows, totals, namespaces, lastReportSync }, chartUpdates] = await Promise.all([getOverview(db, opts), chartsWithCandidate(db)]);
 
   // Sort links keep the filters and flip direction when the column is already active.
   const sortHref = (key: SortKey) => {
@@ -69,6 +71,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-lg font-semibold">Images in use</h1>
         <p className={`text-xs ${mutedClass}`}>
+          {chartUpdates > 0 && (
+            <>
+              <Link href="/charts" className={linkClass}>
+                {chartUpdates} {chartUpdates === 1 ? "chart has" : "charts have"} a newer version
+              </Link>{" "}
+              ·{" "}
+            </>
+          )}
           Tags checked: {totals.tagsChecked} of {totals.images} images ·{" "}
           Last report sync: <Ago iso={lastReportSync?.finished_at} />
           {lastReportSync?.ok === 0 && (

@@ -19,6 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
               Images
             </Link>
+            <Link href="/charts" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+              Charts
+            </Link>
             <Link href="/status" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
               Status
             </Link>
