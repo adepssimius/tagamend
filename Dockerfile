@@ -31,6 +31,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
 # The root filesystem is read-only; helm keeps its cache, config and plugins under /tmp.
 ENV HELM_CACHE_HOME=/tmp/helm/cache HELM_CONFIG_HOME=/tmp/helm/config HELM_DATA_HOME=/tmp/helm/data
 COPY --from=build /usr/local/bin/helm /usr/local/bin/helm
+# System CA certificates for helm: it is a Go binary and reads /etc/ssl/certs, unlike Node,
+# which ships its own bundle. Without them every chart repository fails TLS.
+COPY --from=build /etc/ssl/certs /etc/ssl/certs
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
