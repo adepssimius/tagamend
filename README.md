@@ -107,6 +107,24 @@ A workload's exposure is the worst of its routes. Nothing about a particular
 cluster is built in: with no settings, every Ingress host counts as the
 internet.
 
+## Chart upgrades
+
+For workloads a Flux HelmRelease installs, the worker also proposes chart
+version bumps. It lists newer versions from the chart's repository
+(`index.yaml`, or registry tags for OCI), renders each with `helm template`
+and the HelmRelease's values (inline and valuesFrom ConfigMaps; Secrets are
+skipped and noted), and records the images each version would change. The
+Charts page scans those images and shows each one's CVE diff against what
+runs now.
+
+When the values pin an image with a `tag:` key, a chart bump does not move
+it; the page shows what the chart's default would be, and a PR can move the
+pins too. **Open PR** edits only the chart version (or the OCIRepository's
+ref) and, if asked, the pinned tags, as text edits that keep the file's
+formatting.
+
+The worker image includes `helm`.
+
 ## Configuration
 
 See `src/lib/config.ts` for every variable and its default, and `.env.example`.

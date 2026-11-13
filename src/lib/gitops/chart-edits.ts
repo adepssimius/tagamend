@@ -20,7 +20,8 @@ export interface VersionSite {
 export interface PinOutcome {
   pin: PinnedImage;
   /** "moved": this PR sets it to the chart default; "kept": pins were not asked to move; "same": already the default. */
-  outcome: "moved" | "kept" | "same";
+  /** external: the pin is in a valuesFrom ConfigMap, which this PR cannot edit. */
+  outcome: "moved" | "kept" | "same" | "external";
 }
 
 export interface ChartPlan {
@@ -97,6 +98,13 @@ export function planChartEdits(
     }
     if (target === pin.pinnedTag) {
       pins.push({ pin, outcome: "same" });
+      continue;
+    }
+    // The chart sync marks a pin set in a valuesFrom ConfigMap with a first path
+    // element "valuesFrom:ConfigMap/<name>". The HelmRelease file does not hold
+    // it, so the PR lists it for a hand edit instead of failing.
+    if (typeof pin.valuesPath[0] === "string" && pin.valuesPath[0].startsWith("valuesFrom:")) {
+      pins.push({ pin, outcome: "external" });
       continue;
     }
     if (!target) {

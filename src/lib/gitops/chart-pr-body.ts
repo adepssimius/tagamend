@@ -85,13 +85,18 @@ export function buildChartPrContent(opts: {
   if (plan.pins.length) {
     lines.push("", "## Pinned images", "", "These images are pinned with a `tag:` in the HelmRelease's values, so the chart version alone does not move them.", "");
     for (const { pin, outcome } of plan.pins) {
-      const at = `\`spec.values.${pin.valuesPath.join(".")}\``;
+      const external = typeof pin.valuesPath[0] === "string" && pin.valuesPath[0].startsWith("valuesFrom:");
+      const at = external
+        ? `\`${pin.valuesPath.slice(1).join(".")}\` in the ${String(pin.valuesPath[0]).slice("valuesFrom:".length)} values`
+        : `\`spec.values.${pin.valuesPath.join(".")}\``;
       const def = pin.chartDefault?.tag ? `\`${pin.chartDefault.tag}\`` : "unknown";
       const what =
         outcome === "moved"
           ? `this PR moves it to ${def}, the chart's default`
           : outcome === "same"
             ? "already the chart's default; left as is"
+            : outcome === "external"
+              ? `set outside this file, so this PR cannot move it; change it there to ${def} to follow the chart`
             : `left at \`${pin.pinnedTag}\`; the chart's default is ${def}`;
       lines.push(`- **${pin.kind}/${pin.name}** at ${at}: pinned to \`${pin.pinnedTag}\`, ${what}.`);
     }

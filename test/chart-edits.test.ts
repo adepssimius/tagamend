@@ -88,6 +88,18 @@ describe("planChartEdits", () => {
     expect(out.split("\n")).toHaveLength(HR.split("\n").length);
   });
 
+  it("lists a pin set in a valuesFrom ConfigMap instead of failing", () => {
+    const plan = planChartEdits(files(), {
+      namespace: "apps",
+      name: "demo",
+      toVersion: "1.3.0",
+      pins: [pin(["valuesFrom:ConfigMap/demo-values", "image", "tag"], "v1.2.0", "v1.3.0")],
+      updatePins: true,
+    });
+    expect(plan.pins.map((p) => p.outcome)).toEqual(["external"]);
+    expect(plan.edits).toHaveLength(1); // the chart version only
+  });
+
   it("leaves pins alone unless asked, and reports them", () => {
     const plan = planChartEdits(files(), { namespace: "apps", name: "demo", toVersion: "1.3.0", pins: [pin(["server", "image", "tag"], "v1.2.0", "v1.3.0")], updatePins: false });
     expect(plan.edits).toHaveLength(1);
