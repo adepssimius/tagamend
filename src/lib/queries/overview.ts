@@ -5,6 +5,7 @@ import { parseTag } from "../registry/tag-shape";
 import {
   type DiffCounts,
   latestScansByDigest,
+  fluxScope,
   liveWorkloads,
   runningDigestsByImage,
   scanKey,
@@ -97,7 +98,7 @@ export interface Overview {
  * per-image counting. It deliberately differs from image_digests.critical/...,
  * which count findings (vuln_id x package) for a single digest.
  */
-async function severityCounts(db: DB, namespace: string | undefined) {
+async function severityCounts(db: DB, namespace: string | undefined, fluxOnly: boolean) {
   const rows = await db
     .with("live", (qb) => {
       let q = qb
@@ -107,6 +108,7 @@ async function severityCounts(db: DB, namespace: string | undefined) {
         .where("gone_at", "is", null)
         .where("digest_id", "is not", null);
       if (namespace) q = q.where("namespace", "=", namespace);
+      if (fluxOnly) q = q.where((eb) => eb.or([eb("managed_by", "is", null), eb("managed_by", "!=", "none")]));
       return q;
     })
     .with("per_cve", (qb) =>
@@ -144,9 +146,10 @@ async function severityCounts(db: DB, namespace: string | undefined) {
 }
 
 export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<Overview> {
+  const fluxOnly = await fluxScope(db);
   const [allLive, counts, lastReportSync] = await Promise.all([
-    liveWorkloads(db),
-    severityCounts(db, opts.namespace),
+    liveWorkloads(db, { fluxOnly }),
+    severityCounts(db, opts.namespace, fluxOnly),
     db
       .selectFrom("sync_runs")
       .select(["finished_at", "ok"])

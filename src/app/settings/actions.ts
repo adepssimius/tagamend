@@ -10,6 +10,7 @@ export async function saveSettings(formData: FormData): Promise<void> {
   await setSettings(await getDb(), {
     autoScanBestCandidate: formData.get("autoScanBestCandidate") === "1",
     autoScanRunningBuild: formData.get("autoScanRunningBuild") === "1",
+    fluxManagedOnly: formData.get("fluxManagedOnly") === "1",
   });
   revalidatePath("/settings");
 }

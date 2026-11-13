@@ -156,11 +156,12 @@ for (const { name, url } of testDatabases()) {
       await tag(db, img, "1.2", "sha256:unscanned");
       await scan(db, img, "1.1", "sha256:cand", "done", cand);
 
+      await db.insertInto("kev").values({ cve_id: "CVE-2", vulnerability_name: null, vendor_project: null, product: null, date_added: "2026-01-01", due_date: null, known_ransomware: 0, short_description: null }).execute();
       const page = (await getImagePage(db, img))!;
-      // CVE-1 once, as CRITICAL; CVE-3 once despite two packages.
-      expect(page.runningCounts).toEqual({ critical: 1, high: 0, medium: 1 });
+      // CVE-1 once, as CRITICAL; CVE-3 once despite two packages. CVE-2 is known exploited in both.
+      expect(page.runningCounts).toEqual({ critical: 1, high: 0, medium: 1, exploited: 1 });
       expect(Object.fromEntries(page.tags.map((t) => [t.tag, t.counts]))).toEqual({
-        "1.1": { critical: 0, high: 1, medium: 1 },
+        "1.1": { critical: 0, high: 1, medium: 1, exploited: 1 },
         "1.2": null,
       });
     });

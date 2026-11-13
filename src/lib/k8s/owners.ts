@@ -4,6 +4,7 @@ export interface K8sObject {
   kind?: string;
   metadata?: {
     name?: string;
+    labels?: Record<string, string>;
     namespace?: string;
     ownerReferences?: { apiVersion: string; kind: string; name: string; controller?: boolean }[];
   };
@@ -31,6 +32,11 @@ export interface ReportSource {
    * without it (older tests) leaves `pod_digest` unknown.
    */
   listPodImages?(): Promise<PodImage[]>;
+  /**
+   * What each Flux Kustomization applied, from its status.inventory: object
+   * key "namespace/Kind/name" to "namespace/kustomization". Optional.
+   */
+  listFluxInventory?(): Promise<Map<string, string>>;
 }
 
 export interface PodImage {
@@ -60,7 +66,12 @@ const LABEL_KIND_API_VERSION: Record<string, string> = {
 };
 
 export type Resolution =
-  | { status: "ok"; kind: string; name: string }
+  /**
+   * `labels` are the top-level owner's labels: null when it could not be read
+   * (an operator's custom resource the worker has no RBAC for), so whether
+   * Flux manages it is unknown.
+   */
+  | { status: "ok"; kind: string; name: string; labels: Record<string, string> | null }
   /** The labelled resource exists but is not running anything worth reporting. */
   | { status: "skip"; reason: "scaled_to_zero" | "resource_gone" };
 
@@ -116,10 +127,23 @@ export class OwnerResolver {
     return p;
   }
 
+  /** Owners that could not be read for their labels; not counted as errors. */
+  unreadable = 0;
+
+  private async peekLabels(ref: ObjectRef): Promise<Record<string, string> | null> {
+    try {
+      const o = await this.get(ref);
+      return o ? (o.metadata?.labels ?? {}) : null;
+    } catch {
+      this.unreadable++;
+      return null;
+    }
+  }
+
   private async walk(namespace: string, kind: string, name: string): Promise<Resolution> {
     const apiVersion = LABEL_KIND_API_VERSION[kind];
     // A kind trivy-operator does not normally label with: take it as the top.
-    if (!apiVersion) return { status: "ok", kind, name };
+    if (!apiVersion) return { status: "ok", kind, name, labels: null };
 
     let current: K8sObject | null;
     try {
@@ -127,12 +151,16 @@ export class OwnerResolver {
     } catch (e) {
       this.errors++;
       this.onError({ apiVersion, kind, namespace, name }, e);
-      return { status: "ok", kind, name };
+      return { status: "ok", kind, name, labels: null };
     }
     if (!current) return { status: "skip", reason: "resource_gone" };
     if (kind === "ReplicaSet" && current.spec?.replicas === 0) return { status: "skip", reason: "scaled_to_zero" };
 
-    let top = { kind, name };
+    let top: { kind: string; name: string; labels: Record<string, string> | null } = {
+      kind,
+      name,
+      labels: current.metadata?.labels ?? {},
+    };
     for (let depth = 0; depth < MAX_DEPTH; depth++) {
       const refs = current.metadata?.ownerReferences ?? [];
       const owner = refs.find((r) => r.controller) ?? refs[0];
@@ -143,7 +171,9 @@ export class OwnerResolver {
       // its BroadcastJobs are per-run and the stable name is the AdvancedCronJob
       // above them.
       if (LABEL_KIND_API_VERSION[owner.kind] !== owner.apiVersion && !owner.apiVersion.startsWith("apps.kruise.io/")) {
-        top = { kind: owner.kind, name: owner.name };
+        // Its labels say whether Flux manages it. Read where RBAC allows; an
+        // unreadable one is "unknown", not an error.
+        top = { kind: owner.kind, name: owner.name, labels: await this.peekLabels({ apiVersion: owner.apiVersion, kind: owner.kind, namespace, name: owner.name }) };
         break;
       }
       const ref: ObjectRef = { apiVersion: owner.apiVersion, kind: owner.kind, namespace, name: owner.name };
@@ -153,11 +183,11 @@ export class OwnerResolver {
       } catch (e) {
         this.errors++;
         this.onError(ref, e);
-        top = { kind: owner.kind, name: owner.name };
+        top = { kind: owner.kind, name: owner.name, labels: null };
         break;
       }
       if (!next) break; // 404: the nearest object that exists is the top.
-      top = { kind: owner.kind, name: owner.name };
+      top = { kind: owner.kind, name: owner.name, labels: next.metadata?.labels ?? {} };
       current = next;
     }
     return { status: "ok", ...top };

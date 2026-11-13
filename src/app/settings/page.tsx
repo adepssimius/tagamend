@@ -14,6 +14,19 @@ export default async function SettingsPage() {
     <div className="max-w-2xl">
       <h1 className="text-lg font-semibold">Settings</h1>
       <form action={saveSettings}>
+        <Section title="Scope">
+          <label className="flex gap-2 text-sm">
+            <input type="checkbox" name="fluxManagedOnly" value="1" defaultChecked={s.fluxManagedOnly} className="mt-1" />
+            <span>
+              <span className="font-medium">Only workloads Flux manages</span>
+              <span className={`block text-xs ${mutedClass}`}>
+                Leaves out workloads that no Flux Kustomization or HelmRelease applies: things deployed by hand,
+                one-off Jobs, k3s&apos;s bundled add-ons, and objects an operator creates on its own. Counts, lists,
+                tag discovery and automatic scans all follow this. A workload whose manager cannot be read stays in.
+              </span>
+            </span>
+          </label>
+        </Section>
         <Section title="Automatic scans">
           <div className="space-y-4 text-sm">
             <label className="flex gap-2">

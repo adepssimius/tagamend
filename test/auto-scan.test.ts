@@ -24,13 +24,13 @@ for (const { name, url } of testDatabases()) {
 
       expect(await autoScan(ctx)).toEqual({ idle: true, disabled: true });
 
-      await setSettings(db, { autoScanBestCandidate: true, autoScanRunningBuild: false });
+      await setSettings(db, { autoScanBestCandidate: true, autoScanRunningBuild: false, fluxManagedOnly: true });
       // The best candidate is 1.3, but it has no digest, so nothing is queued for it.
       expect(await autoScan(ctx)).toEqual({ idle: true });
       await db.updateTable("tags").set({ is_candidate: 0 }).where("tag", "=", "1.3").execute();
       expect(await autoScan(ctx)).toEqual({ queued: 1 });
 
-      await setSettings(db, { autoScanBestCandidate: true, autoScanRunningBuild: true });
+      await setSettings(db, { autoScanBestCandidate: true, autoScanRunningBuild: true, fluxManagedOnly: true });
       expect(await autoScan(ctx)).toEqual({ queued: 1 });
       expect(await autoScan(ctx)).toEqual({ idle: true });
 

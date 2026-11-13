@@ -11,7 +11,9 @@ import {
   vulnsForDigests,
   type CveCounts,
   cveCounts,
+  fluxScope,
 } from "./common";
+import { kevFor } from "./kev";
 
 export interface ImageVulnRow extends Vulnerability {
   /** The running digests this finding appears in. */
@@ -63,10 +65,9 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
   const image = await db.selectFrom("images").selectAll().where("id", "=", imageId).executeTakeFirst();
   if (!image) return null;
 
-  const workloads = await db
-    .selectFrom("workloads")
-    .selectAll()
-    .where("image_id", "=", imageId)
+  let wq = db.selectFrom("workloads").selectAll().where("image_id", "=", imageId);
+  if (await fluxScope(db)) wq = wq.where((eb) => eb.or([eb("managed_by", "is", null), eb("managed_by", "!=", "none")]));
+  const workloads = await wq
     .orderBy("namespace")
     .orderBy("name")
     .orderBy("container")
@@ -106,7 +107,8 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
   const tagScans = tags.map((t) => (t.digest ? (scansByDigest.get(scanKey(imageId, t.digest)) ?? null) : null));
   const resultIds = [...new Set(tagScans.flatMap((s) => (s?.status === "done" && s.result_digest_id != null ? [s.result_digest_id] : [])))];
   const resultVulns = await vulnsForDigests(db, resultIds);
-  const countsByDigest = new Map(resultIds.map((id) => [id, cveCounts(resultVulns.filter((v) => v.digest_id === id))]));
+  const kev = new Set((await kevFor(db, [...rawVulns, ...resultVulns].map((v) => v.vuln_id))).keys());
+  const countsByDigest = new Map(resultIds.map((id) => [id, cveCounts(resultVulns.filter((v) => v.digest_id === id), kev)]));
   const summaries = await summariesForScans(
     db,
     [...tagScans.filter((s) => s !== null), ...recent],
@@ -132,7 +134,7 @@ export async function getImagePage(db: DB, imageId: number): Promise<ImagePage |
       }),
     ),
     pinnedByDigest: live.length > 0 && live.every((w) => w.tag == null),
-    runningCounts: cveCounts(rawVulns),
+    runningCounts: cveCounts(rawVulns, kev),
     staleBuilds: [
       ...live
         .filter((w) => w.pod_digest)

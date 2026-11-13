@@ -79,6 +79,12 @@ export interface WorkloadsTable {
    * when it differs from `report_digest`. Null when they match or are unknown.
    */
   pod_digest: string | null;
+  /**
+   * The Flux object that applies this workload: "Kustomization ns/name" or
+   * "HelmRelease ns/name". "none" when Flux does not manage it; null when
+   * unknown (its owner could not be read).
+   */
+  managed_by: string | null;
   /** Set when a sync no longer sees the workload for 24h; cleared if it returns. */
   gone_at: Timestamp | null;
 }

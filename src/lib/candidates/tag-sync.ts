@@ -1,3 +1,4 @@
+import { fluxScope } from "../queries/common";
 import type { DB } from "../db";
 import { errorMessage } from "../log";
 import { RegistryClient } from "../registry/client";
@@ -58,6 +59,8 @@ export async function runTagSync(ctx: WorkerContext, opts: TagSyncOptions = {}):
     now: nowMs,
   });
 
+  // Images only out-of-scope workloads run are not checked: no registry calls for them.
+  const fluxOnly = await fluxScope(ctx.db);
   const inUse = await ctx.db
     .selectFrom("images")
     .select(["images.id", "images.registry", "images.repository", "images.last_tag_sync_at"])
@@ -67,7 +70,10 @@ export async function runTagSync(ctx: WorkerContext, opts: TagSyncOptions = {}):
           .selectFrom("workloads")
           .select("workloads.id")
           .whereRef("workloads.image_id", "=", "images.id")
-          .where("workloads.gone_at", "is", null),
+          .where("workloads.gone_at", "is", null)
+          .where((w) =>
+            fluxOnly ? w.or([w("workloads.managed_by", "is", null), w("workloads.managed_by", "!=", "none")]) : w.lit(true),
+          ),
       ),
     )
     .execute();
@@ -133,12 +139,17 @@ async function syncImage(
   image: DueImage,
   at: string,
 ): Promise<{ candidates: number; pinned: boolean }> {
+  // Running tags of out-of-scope workloads do not shape the candidates.
+  const scoped = await fluxScope(db);
   const workloads = await db
     .selectFrom("workloads")
     .leftJoin("image_digests", "image_digests.id", "workloads.digest_id")
     .select(["workloads.tag", "image_digests.digest"])
     .where("workloads.image_id", "=", image.id)
     .where("workloads.gone_at", "is", null)
+    .where((w) =>
+      scoped ? w.or([w("workloads.managed_by", "is", null), w("workloads.managed_by", "!=", "none")]) : w.lit(true),
+    )
     .execute();
 
   /** Running tag to the digests its workloads actually run. */

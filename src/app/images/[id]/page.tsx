@@ -161,6 +161,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                 <th>Container</th>
                 <th>Tag</th>
                 <th title="The image digest this workload's pods actually run">Build</th>
+                <th>Managed by</th>
                 <th>Last seen</th>
               </tr>
             </thead>
@@ -189,6 +190,17 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                       <ShortDigest digest={w.report_digest} />
                     ) : (
                       <span className={mutedClass}>—</span>
+                    )}
+                  </td>
+                  <td className="text-xs">
+                    {w.managed_by == null ? (
+                      <span className={mutedClass} title="Its owner could not be read, so whether Flux manages it is unknown">
+                        unknown
+                      </span>
+                    ) : w.managed_by === "none" ? (
+                      <span className="text-amber-700 dark:text-amber-300">not Flux</span>
+                    ) : (
+                      w.managed_by
                     )}
                   </td>
                   <td>
@@ -241,6 +253,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                 <th className="text-right">Crit</th>
                 <th className="text-right">High</th>
                 <th className="text-right">Med</th>
+                <th className="text-right" title="Known exploited: in CISA's KEV catalog">KEV</th>
                 <th>Scan</th>
                 {prsEnabled && <th>PR</th>}
               </tr>
@@ -260,6 +273,9 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                 <td className="text-right">
                   <SeverityCount severity="MEDIUM" n={runningCounts.medium} />
                 </td>
+                <td className="text-right">
+                  <Exploited n={runningCounts.exploited} />
+                </td>
                 <td />
                 {prsEnabled && <td />}
               </tr>
@@ -271,11 +287,11 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                   <td>
                     <Ago iso={t.first_seen_at} />
                   </td>
-                  {(["critical", "high", "medium"] as const).map((k) => (
+                  {(["critical", "high", "medium", "exploited"] as const).map((k) => (
                     <td key={k} className="whitespace-nowrap text-right">
                       {t.counts ? (
                         <>
-                          <SeverityCount severity={k.toUpperCase()} n={t.counts[k]} />
+                          {k === "exploited" ? <Exploited n={t.counts[k]} /> : <SeverityCount severity={k.toUpperCase()} n={t.counts[k]} />}
                           <Delta n={t.counts[k] - runningCounts[k]} />
                         </>
                       ) : (
@@ -307,7 +323,11 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                   </td>
                   {prsEnabled && (
                     <td>
-                      <PrCell prs={t.prs} scanId={t.scan?.status === "done" ? t.scan.id : null} workloads={liveWorkloads} />
+                      <PrCell
+                        prs={t.prs}
+                        scanId={t.scan?.status === "done" ? t.scan.id : null}
+                        workloads={liveWorkloads.filter((w) => w.managed_by !== "none")}
+                      />
                     </td>
                   )}
                 </tr>
@@ -524,5 +544,14 @@ function Delta({ n }: { n: number }) {
     <span className={`ml-1 text-xs tabular-nums ${n < 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
       {n < 0 ? `−${-n}` : `+${n}`}
     </span>
+  );
+}
+
+/** Known-exploited count: red when any. */
+function Exploited({ n }: { n: number }) {
+  return n > 0 ? (
+    <span className="font-semibold tabular-nums text-red-700 dark:text-red-400">{n}</span>
+  ) : (
+    <span className="tabular-nums text-zinc-300 dark:text-zinc-700">0</span>
   );
 }

@@ -1,4 +1,5 @@
 import type { DB } from "../db";
+import { getSettings } from "../settings";
 import type { Scan, Tag, Vulnerability, Workload } from "../db/schema";
 import { type Diff, diffSummary, diffVulnerabilities } from "../trivy/diff";
 
@@ -51,12 +52,23 @@ export function sortTags<T extends Pick<Tag, "tag" | "is_candidate" | "first_see
 }
 
 /** Workloads still running (not marked gone). */
+/** Whether the Settings page scopes the app to Flux-managed workloads. */
+export async function fluxScope(db: DB): Promise<boolean> {
+  return (await getSettings(db)).fluxManagedOnly;
+}
+
+/**
+ * Live workloads. In Flux scope (the default, see Settings), ones known not to
+ * be Flux-managed are left out; unknown ones stay.
+ */
 export async function liveWorkloads(
   db: DB,
-  opts: { imageIds?: number[]; namespace?: string } = {},
+  opts: { imageIds?: number[]; namespace?: string; fluxOnly?: boolean } = {},
 ): Promise<Workload[]> {
   if (opts.imageIds && opts.imageIds.length === 0) return [];
+  const fluxOnly = opts.fluxOnly ?? (await fluxScope(db));
   let q = db.selectFrom("workloads").selectAll().where("gone_at", "is", null);
+  if (fluxOnly) q = q.where((eb) => eb.or([eb("managed_by", "is", null), eb("managed_by", "!=", "none")]));
   if (opts.imageIds) q = q.where("image_id", "in", opts.imageIds);
   if (opts.namespace) q = q.where("namespace", "=", opts.namespace);
   return q.orderBy("namespace").orderBy("name").orderBy("container").execute();
@@ -177,6 +189,8 @@ export interface CveCounts {
   critical: number;
   high: number;
   medium: number;
+  /** CVEs in CISA's Known Exploited Vulnerabilities catalog, any severity. */
+  exploited: number;
 }
 
 /**
@@ -184,13 +198,14 @@ export interface CveCounts {
  * severity any of its findings gives it. Used for the running image and for
  * each scanned candidate, so the two compare like for like.
  */
-export function cveCounts(vulns: { vuln_id: string; severity: string }[]): CveCounts {
+export function cveCounts(vulns: { vuln_id: string; severity: string }[], kev: ReadonlySet<string> = new Set()): CveCounts {
   const worst = new Map<string, string>();
   for (const v of vulns) {
     const cur = worst.get(v.vuln_id);
     worst.set(v.vuln_id, cur ? worstSeverity(cur, v.severity) : v.severity);
   }
-  const out = { critical: 0, high: 0, medium: 0 };
+  const out = { critical: 0, high: 0, medium: 0, exploited: 0 };
+  for (const id of worst.keys()) if (kev.has(id)) out.exploited++;
   for (const s of worst.values()) {
     if (s === "CRITICAL") out.critical++;
     else if (s === "HIGH") out.high++;

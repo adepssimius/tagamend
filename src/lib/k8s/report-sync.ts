@@ -43,6 +43,7 @@ export interface ReportSyncDetail extends Record<string, unknown> {
   /** Workloads whose pods run an older build than the one their report scanned. */
   staleBuilds?: number;
   podListError?: string;
+  fluxInventoryError?: string;
   aborted?: boolean;
 }
 
@@ -78,6 +79,17 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
   let newest: { at: string; version: string } | undefined;
   const syncStart = clock();
   const seenAt = syncStart.toISOString();
+
+  // What Flux applies, to tell its workloads from ones deployed another way.
+  let inventory: Map<string, string> | null = null;
+  if (source.listFluxInventory) {
+    try {
+      inventory = await source.listFluxInventory();
+    } catch (e) {
+      log.warn("report sync: could not read Flux inventories", { error: errorMessage(e) });
+      detail.fluxInventoryError = errorMessage(e);
+    }
+  }
 
   // What pods actually run, by the resource a report names (pod or its controller).
   const podDigests = new Map<string, Set<string>>();
@@ -170,6 +182,7 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
         last_seen_at: seenAt,
         report_digest: r.scan.digest,
         pod_digest: podDigest,
+        managed_by: fluxManager(res.namespace, owner, inventory),
         gone_at: null,
       };
       // A running tag or build that changed makes the image's candidates
@@ -199,6 +212,7 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
             last_seen_at: row.last_seen_at,
             report_digest: row.report_digest,
             pod_digest: row.pod_digest,
+            managed_by: row.managed_by,
             gone_at: null,
           }),
         )
@@ -227,4 +241,27 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
     log.warn("report sync: more invalid VulnerabilityReports not logged", { count: detail.invalid - MAX_INVALID_LOGS });
   }
   return detail;
+}
+
+/**
+ * Which Flux object applies a workload's top-level owner. A Kustomization's
+ * inventory lists what it applied; helm-controller labels what a HelmRelease
+ * installed. "none" when neither does; null when the owner's labels could not
+ * be read and the inventory does not list it, so it is unknown.
+ */
+export function fluxManager(
+  namespace: string,
+  owner: { kind: string; name: string; labels: Record<string, string> | null },
+  inventory: Map<string, string> | null,
+): string | null {
+  const ks = inventory?.get(`${namespace}/${owner.kind}/${owner.name}`);
+  if (ks) return `Kustomization ${ks}`;
+  const l = owner.labels;
+  if (l?.["helm.toolkit.fluxcd.io/name"]) {
+    return `HelmRelease ${l["helm.toolkit.fluxcd.io/namespace"] ?? namespace}/${l["helm.toolkit.fluxcd.io/name"]}`;
+  }
+  if (l?.["kustomize.toolkit.fluxcd.io/name"]) {
+    return `Kustomization ${l["kustomize.toolkit.fluxcd.io/namespace"] ?? namespace}/${l["kustomize.toolkit.fluxcd.io/name"]}`;
+  }
+  return l && inventory ? "none" : null;
 }

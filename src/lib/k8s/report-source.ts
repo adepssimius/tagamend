@@ -46,6 +46,27 @@ export function k8sReportSource(): ReportSource {
       } while (cont);
       return out;
     },
+    async listFluxInventory() {
+      const out = new Map<string, string>();
+      const res = (await custom.listClusterCustomObject({
+        group: "kustomize.toolkit.fluxcd.io",
+        version: "v1",
+        plural: "kustomizations",
+      })) as { items?: { metadata?: { name?: string; namespace?: string }; status?: { inventory?: { entries?: { id: string }[] } } }[] };
+      for (const k of res.items ?? []) {
+        const by = `${k.metadata?.namespace}/${k.metadata?.name}`;
+        for (const e of k.status?.inventory?.entries ?? []) {
+          // id is "<namespace>_<name>_<group>_<Kind>"; group may be empty.
+          const parts = e.id.split("_");
+          if (parts.length < 4) continue;
+          const kind = parts[parts.length - 1]!;
+          const ns = parts[0]!;
+          const name = parts.slice(1, parts.length - 2).join("_");
+          out.set(`${ns}/${kind}/${name}`, by);
+        }
+      }
+      return out;
+    },
     async getObject(ref) {
       try {
         return (await objects.read({

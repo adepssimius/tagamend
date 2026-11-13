@@ -151,8 +151,8 @@ for (const { name, url } of testDatabases()) {
       const detail = await syncReports(context(db).ctx, { source });
 
       expect(detail.workloads).toBe(11);
-      // A CNPG Cluster is named from the ownerReference and never read.
-      expect(source.reads.filter((k) => k.endsWith("/Cluster/team-c/demo-postgres"))).toHaveLength(0);
+      // A CNPG Cluster is read once, for the labels that say whether Flux manages it.
+      expect(source.reads.filter((k) => k.endsWith("/Cluster/team-c/demo-postgres"))).toHaveLength(1);
       expect(source.reads.filter((k) => k.endsWith("/Pod/team-c/demo-postgres-1"))).toHaveLength(1);
       expect(new Set(source.reads).size).toBe(source.reads.length);
       expect(detail.ownerReads).toBe(source.reads.length);
