@@ -148,6 +148,23 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
     pinDigest,
   });
   const { edits, skipped } = chosen ? narrowToWorkloads(found, live, allLive) : found;
+  // Workloads this PR is for whose objects the repo does not define (deployed
+  // by hand, or from another repo). A shared Kustomize or Helm entry may still
+  // cover them, so this counts only workloads with no reference of their own.
+  const refs = [...found.edits, ...found.skipped];
+  const owners = refs.map((x) => x.owner).filter((o): o is Owner => !!o);
+  // A reference with no known owner, or a non-workload owner, might cover any
+  // workload, so nothing is claimed missing then.
+  const shared = refs.some((x) => !x.owner) || owners.some((o) => !live.some((w) => w.kind === o.kind && w.name === o.name));
+  const notInRepo = shared
+    ? []
+    : [
+        ...new Set(
+          live
+            .filter((w) => !owners.some((o) => o.kind === w.kind && o.name === w.name && (o.namespace == null || o.namespace === w.namespace)))
+            .map((w) => `${w.namespace}/${w.name}`),
+        ),
+      ];
   const partial = { edits: JSON.stringify(edits), skipped: JSON.stringify(skipped) };
   if (edits.length === 0) {
     const why = skipped.length
@@ -175,6 +192,8 @@ async function openOne(ctx: WorkerContext, req: PullRequest, deps: PrQueueDeps) 
     exploited: new Set(kev.keys()),
     pinned: !!pinDigest,
     onlyWorkloads: chosen ? [...new Set(live.map((w) => `${w.namespace}/${w.name}`))] : undefined,
+    notInRepo,
+    repo,
   });
 
   let branch = branchName(image.repository, req.to_tag, pinDigest, chosen ? live.map((w) => w.name) : undefined);

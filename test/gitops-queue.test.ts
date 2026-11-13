@@ -117,6 +117,7 @@ for (const { name, url } of testDatabases()) {
       expect(body).toContain("**New in 2.37.2:** 0 critical, 1 high, 0 medium");
       expect(body).toContain("https://tagamend.example/scans/");
       expect(body).toContain("Opened by tagamend for ben.");
+      expect(body).not.toContain("Not in this repo");
 
       const row = await db.selectFrom("pull_requests").selectAll().where("id", "=", pr.id).executeTakeFirstOrThrow();
       expect(row).toMatchObject({ status: "opened", pr_number: 7, pr_url: "https://github.com/o/r/pull/7", branch: "tagamend/books-2.37.2" });
@@ -148,6 +149,20 @@ for (const { name, url } of testDatabases()) {
       await refreshPrStates(db, opts);
       expect(gh.stateCalls).toBe(2);
       expect(await refreshPrStates(db, { ...opts, imageId: img + 1 })).toBe(0);
+    });
+
+    it("names workloads the repo does not define", async () => {
+      db = await freshDb(url);
+      const { scanId, img } = await setup(db);
+      const dig = (await db.selectFrom("workloads").select("digest_id").executeTakeFirstOrThrow()).digest_id;
+      await db.insertInto("workloads").values({ namespace: "scratch", kind: "Deployment", name: "books", container: "app", image_id: img, tag: "2.32.1", digest_id: dig, last_seen_at: now(), gone_at: null }).execute();
+      await queuePullRequest(db, { scanId, requestedBy: "ben" });
+      const gh = new FakeGitHub({
+        "apps/books/deployment.yaml": "kind: Deployment\nmetadata:\n  name: books\n  namespace: media\nspec:\n  template:\n    spec:\n      containers:\n        - image: ghcr.io/example/books:2.32.1\n",
+      });
+      expect(await runPrQueue(ctxFor(db), { github: gh })).toMatchObject({ opened: 1 });
+      expect(gh.prs[0]!.body).toContain("- `scratch/books` runs this image but is not defined in `o/r`.");
+      expect(gh.prs[0]!.body).not.toContain("`media/books` runs");
     });
 
     it("fails with a reason when the repo does not reference the image", async () => {

@@ -53,6 +53,9 @@ export function buildPrContent(opts: {
   pinned?: boolean;
   /** Only these workloads move ("namespace/name"); others keep their tag. */
   onlyWorkloads?: string[];
+  /** Workloads of this image that the repo does not define, so this PR cannot move them. */
+  notInRepo?: string[];
+  repo?: string;
 }): PrContent {
   const exploited = opts.exploited ?? new Set<string>();
   const app = opts.repository.split("/").pop()!;
@@ -86,6 +89,12 @@ export function buildPrContent(opts: {
 
   lines.push("", "## Changes", "");
   for (const e of opts.edits) lines.push(`- \`${e.path}:${e.line}\``);
+  if (opts.notInRepo?.length) {
+    lines.push("", "### Not in this repo", "");
+    for (const w of opts.notInRepo) {
+      lines.push(`- \`${w}\` runs this image but is not defined in ${opts.repo ? `\`${opts.repo}\`` : "this repo"}. Update it where it is managed.`);
+    }
+  }
   if (opts.skipped.length) {
     lines.push("", "### Left alone", "");
     for (const s of opts.skipped) lines.push(`- \`${s.path}:${s.line}\`: ${s.reason}`);
