@@ -27,6 +27,53 @@ export default async function SettingsPage() {
             </span>
           </label>
         </Section>
+        <Section title="Exposure">
+          <div className="space-y-4 text-sm">
+            <label className="block">
+              <span className="font-medium">Internal host patterns</span>
+              <span className={`block text-xs ${mutedClass}`}>
+                One per line. Ingress hosts that match are reachable only from the local network; others count as
+                reachable from the internet. <code>*</code> matches one or more DNS labels, as in{" "}
+                <code>*.internal.example.com</code>.
+              </span>
+              <textarea
+                name="internalHostPatterns"
+                rows={3}
+                defaultValue={s.internalHostPatterns.join("\n")}
+                className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </label>
+            <label className="block">
+              <span className="font-medium">LoadBalancer and NodePort services are reachable from</span>
+              <select
+                name="loadBalancerReach"
+                defaultValue={s.loadBalancerReach}
+                className="mt-1 block rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                <option value="lan">The local network</option>
+                <option value="internet">The internet</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="font-medium">OIDC client source</span>
+              <span className={`block text-xs ${mutedClass}`}>
+                A ConfigMap that configures your OIDC provider&apos;s clients, as <code>namespace/name/key</code>. An
+                Ingress host that appears in a client&apos;s <code>redirect_uris</code> is shown as logging in through
+                OIDC. Empty turns this off. The worker needs read access to that ConfigMap.
+              </span>
+              <input
+                name="oidcClientsSource"
+                defaultValue={s.oidcClientsSource}
+                placeholder="namespace/configmap/key"
+                className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </label>
+            <p className={`text-xs ${mutedClass}`}>
+              Forward auth is read from each Ingress&apos;s <code>auth-url</code> annotation, and a Tailscale ingress
+              class counts as the tailnet. Changes apply at the next exposure check, within five minutes.
+            </p>
+          </div>
+        </Section>
         <Section title="Automatic scans">
           <div className="space-y-4 text-sm">
             <label className="flex gap-2">

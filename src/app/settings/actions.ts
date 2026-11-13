@@ -11,6 +11,12 @@ export async function saveSettings(formData: FormData): Promise<void> {
     autoScanBestCandidate: formData.get("autoScanBestCandidate") === "1",
     autoScanRunningBuild: formData.get("autoScanRunningBuild") === "1",
     fluxManagedOnly: formData.get("fluxManagedOnly") === "1",
+    internalHostPatterns: String(formData.get("internalHostPatterns") ?? "")
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+    loadBalancerReach: formData.get("loadBalancerReach") === "internet" ? "internet" : "lan",
+    oidcClientsSource: String(formData.get("oidcClientsSource") ?? "").trim(),
   });
   revalidatePath("/settings");
 }

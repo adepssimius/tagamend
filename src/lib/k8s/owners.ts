@@ -102,7 +102,7 @@ export class OwnerResolver {
   reads = 0;
 
   constructor(
-    private readonly source: ReportSource,
+    private readonly source: Pick<ReportSource, "getObject">,
     private readonly onError: (ref: ObjectRef, e: unknown) => void = () => {},
   ) {}
 

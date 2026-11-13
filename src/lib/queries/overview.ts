@@ -2,6 +2,7 @@ import { sql } from "kysely";
 import type { DB } from "../db";
 import type { ScanStatus } from "../db/schema";
 import { parseTag } from "../registry/tag-shape";
+import { EXPOSURE_ORDER, type Exposure } from "../exposure/classify";
 import {
   type DiffCounts,
   latestScansByDigest,
@@ -14,7 +15,7 @@ import {
 } from "./common";
 
 export type MinSeverity = "CRITICAL" | "HIGH" | "MEDIUM";
-export const SORT_KEYS = ["image", "workloads", "critical", "high", "medium", "exploited", "candidate"] as const;
+export const SORT_KEYS = ["image", "workloads", "critical", "high", "medium", "exploited", "exposure", "candidate"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
 export interface OverviewOptions {
@@ -28,6 +29,8 @@ export interface OverviewOptions {
   needs?: ("candidate" | "stale")[];
   /** Keep only images with at least one CVE in CISA's KEV catalog (ANDed with the rest). */
   exploited?: boolean;
+  /** internet: reachable from the internet at all. internet-app: with no auth in front. */
+  exposure?: "internet" | "internet-app";
   /** Default: worst first (critical, then high, then medium). */
   sort?: SortKey;
   dir?: "asc" | "desc";
@@ -50,6 +53,8 @@ export interface OverviewRow {
   exploited: number;
   /** A pod runs an older build than its tag points to now. */
   staleBuild: boolean;
+  /** The worst exposure among its workloads; null before the first exposure check. */
+  exposure: Exposure | null;
   candidateCount: number;
   /** Tag discovery state for the image, so "no candidate" can say why. */
   tagCheck: {
@@ -204,6 +209,7 @@ export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<O
       digests: new Set(ws.map((w) => w.digest_id).filter((d) => d != null)).size,
       ...c,
       staleBuild: ws.some((w) => w.pod_digest != null),
+      exposure: worstExposure(ws.map((w) => w.exposure_summary)),
       candidateCount: candidateCount.get(img.id) ?? 0,
       tagCheck: tagCheckOf(img, ws),
       candidate: t
@@ -226,6 +232,8 @@ export async function getOverview(db: DB, opts: OverviewOptions = {}): Promise<O
     rows = rows.filter((r) => (needs.includes("candidate") && !!r.candidate) || (needs.includes("stale") && r.staleBuild));
   }
   if (opts.exploited) rows = rows.filter((r) => r.exploited > 0);
+  if (opts.exposure === "internet") rows = rows.filter((r) => r.exposure?.startsWith("internet"));
+  if (opts.exposure === "internet-app") rows = rows.filter((r) => r.exposure === "internet-app");
   rows.sort(comparator(opts.sort, opts.dir));
 
   return { rows, totals: totalsOf(rows), namespaces, lastReportSync: lastReportSync ?? null };
@@ -250,6 +258,11 @@ function comparator(sort: SortKey | undefined, dir: "asc" | "desc" | undefined) 
         return a.medium - b.medium || -worstFirst(a, b);
       case "exploited":
         return a.exploited - b.exploited || -worstFirst(a, b);
+      case "exposure": {
+        // Descending (the default) puts the most exposed first.
+        const rank = (r: OverviewRow) => EXPOSURE_ORDER.length - EXPOSURE_ORDER.indexOf(r.exposure ?? "none");
+        return rank(a) - rank(b) || -worstFirst(a, b);
+      }
       case "candidate": {
         // Descending (the default) puts the most useful first: the scanned candidate that fixes the most.
         const score = (r: OverviewRow) => (r.candidate ? 1 + (r.candidate.scan?.diff ? 1 + r.candidate.scan.diff.fixed : 0) : 0);
@@ -295,4 +308,10 @@ function totalsOf(rows: OverviewRow[]): Overview["totals"] {
     if (r.tagCheck.checkedAt) t.tagsChecked++;
   }
   return t;
+}
+
+function worstExposure(values: (string | null)[]): Exposure | null {
+  const known = values.filter((v): v is Exposure => !!v && (EXPOSURE_ORDER as readonly string[]).includes(v));
+  if (known.length === 0) return null;
+  return known.reduce((a, b) => (EXPOSURE_ORDER.indexOf(a) <= EXPOSURE_ORDER.indexOf(b) ? a : b));
 }

@@ -28,6 +28,7 @@ const LOOP_NAMES: Record<SyncName, string> = {
   pr_queue: "PR queue",
   kev_sync: "Known exploited (CISA)",
   auto_scan: "Automatic scans",
+  exposure_sync: "Exposure",
 };
 
 const warnClass = "font-semibold text-amber-700 dark:text-amber-300";

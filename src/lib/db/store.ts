@@ -147,7 +147,7 @@ export async function getKv(db: DB, key: string): Promise<string | undefined> {
 
 /** Keep the last N runs per loop. */
 export async function pruneSyncRuns(db: DB, keep = 200): Promise<void> {
-  for (const name of ["report_sync", "tag_sync", "scan_queue", "pr_queue", "kev_sync", "auto_scan"] as const) {
+  for (const name of ["report_sync", "tag_sync", "scan_queue", "pr_queue", "kev_sync", "auto_scan", "exposure_sync"] as const) {
     const cutoff = await db
       .selectFrom("sync_runs")
       .select("id")

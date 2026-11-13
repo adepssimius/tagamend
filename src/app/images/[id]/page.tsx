@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth";
+import { ExposureBadge, routeAuth } from "@/components/exposure";
 import { PrLink } from "@/components/pr-link";
+import { exposureOf, type Route } from "@/lib/exposure/classify";
 import { SubmitButton } from "@/components/submit-button";
 import {
   Ago,
@@ -212,6 +214,57 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
             </tbody>
           </Table>
         )}
+      </Section>
+
+      <Section title="Exposure" note="How each workload can be reached, from its Ingresses and LoadBalancer services. Reach and OIDC follow Settings.">
+        {(() => {
+          const rows = liveWorkloads
+            .filter((w, i, all) => all.findIndex((x) => x.namespace === w.namespace && x.kind === w.kind && x.name === w.name) === i)
+            .map((w) => ({ w, routes: w.exposure ? (JSON.parse(w.exposure) as Route[]) : null }));
+          if (rows.every((r) => r.routes === null)) return <Empty>Not checked yet. The exposure check runs every five minutes.</Empty>;
+          return (
+            <Table>
+              <thead>
+                <tr>
+                  <th>Workload</th>
+                  <th>Exposure</th>
+                  <th>Route</th>
+                  <th>Reach</th>
+                  <th>Auth</th>
+                  <th>Via</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.flatMap(({ w, routes }) =>
+                  !routes || routes.length === 0
+                    ? [
+                        <tr key={w.id}>
+                          <td>
+                            {w.namespace}/{w.name}
+                          </td>
+                          <td>
+                            <ExposureBadge exposure={routes ? "none" : null} />
+                          </td>
+                          <td colSpan={4} />
+                        </tr>,
+                      ]
+                    : routes.map((r, i) => (
+                        <tr key={`${w.id}-${i}`}>
+                          <td>{i === 0 ? `${w.namespace}/${w.name}` : ""}</td>
+                          <td>
+                            <ExposureBadge exposure={exposureOf([r])} />
+                          </td>
+                          <td className="font-mono text-xs">{r.address}</td>
+                          <td className="text-xs">{r.reach === "lan" ? "LAN" : r.reach}</td>
+                          <td className="text-xs">{routeAuth(r)}</td>
+                          <td className={`text-xs ${mutedClass}`}>{r.object}</td>
+                        </tr>
+                      )),
+                )}
+              </tbody>
+            </Table>
+          );
+        })()}
       </Section>
 
       <Section

@@ -8,6 +8,7 @@ import { runScanQueue } from "./lib/scan/queue";
 import { runPrQueue } from "./lib/gitops/queue";
 import { syncKev } from "./lib/kev/sync";
 import { autoScan } from "./lib/scan/auto";
+import { syncExposure } from "./lib/exposure/sync";
 import type { SyncName } from "./lib/db/schema";
 import type { WorkerContext } from "./lib/worker-context";
 
@@ -55,6 +56,8 @@ const loops = [
   loop("kev_sync", 6 * 3_600_000, (c) => syncKev(c)),
   // Off unless turned on in Settings; when on, finds candidates within a minute of tag discovery.
   loop("auto_scan", 60_000, autoScan, false),
+  // Ingresses and Services change rarely; settings changes show within this interval.
+  loop("exposure_sync", 5 * 60_000, (c) => syncExposure(c)),
 ];
 const pruner = setInterval(() => pruneSyncRuns(db).catch((e) => log.warn("prune failed", { error: errorMessage(e) })), 3_600_000);
 

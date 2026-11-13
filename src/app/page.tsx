@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/auth";
+import { ExposureBadge } from "@/components/exposure";
 import { Ago, Empty, ImageName, linkClass, mutedClass, ScanStatusBadge, SeverityCount, Table } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { getOverview, type MinSeverity, type OverviewOptions, type OverviewRow, SORT_KEYS, type SortKey } from "@/lib/queries/overview";
@@ -22,6 +23,7 @@ function parseOptions(sp: SP): OverviewOptions {
       ...(one(sp.stale) === "1" ? (["stale"] as const) : []),
     ],
     exploited: one(sp.kev) === "1",
+    exposure: one(sp.exposure) === "internet" || one(sp.exposure) === "internet-app" ? (one(sp.exposure) as "internet" | "internet-app") : undefined,
     sort: SORT_KEYS.includes(sort as SortKey) ? (sort as SortKey) : undefined,
     dir: dir === "asc" || dir === "desc" ? dir : undefined,
   };
@@ -41,6 +43,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     if (opts.needs?.includes("candidate")) p.set("candidate", "1");
     if (opts.needs?.includes("stale")) p.set("stale", "1");
     if (opts.exploited) p.set("kev", "1");
+    if (opts.exposure) p.set("exposure", opts.exposure);
     p.set("sort", key);
     const defaultDir = key === "image" ? "asc" : "desc";
     const current = opts.sort === key ? (opts.dir ?? defaultDir) : undefined;
@@ -59,7 +62,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       </th>
     );
   };
-  const filtered = !!(opts.namespace || opts.minSeverity || opts.needs?.length || opts.exploited);
+  const filtered = !!(opts.namespace || opts.minSeverity || opts.needs?.length || opts.exploited || opts.exposure);
 
   return (
     <div>
@@ -121,6 +124,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             <option value="MEDIUM">Medium</option>
           </select>
         </label>
+        <label className="flex flex-col gap-0.5">
+          <span className={`text-xs ${mutedClass}`}>Exposure</span>
+          <select name="exposure" defaultValue={opts.exposure ?? ""} className={inputClass}>
+            <option value="">Any</option>
+            <option value="internet">Internet</option>
+            <option value="internet-app">Internet, app login only</option>
+          </select>
+        </label>
         <fieldset className="flex flex-col gap-0.5">
           <legend className={`text-xs ${mutedClass}`}>Needs action (any)</legend>
           <div className="flex items-center gap-3 pb-1">
@@ -177,6 +188,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                 <SortTh k="exploited" className="text-right">
                   <span title="CVEs in CISA's Known Exploited Vulnerabilities catalog">KEV</span>
                 </SortTh>
+                <SortTh k="exposure">Exposure</SortTh>
                 <SortTh k="candidate">Best candidate</SortTh>
               </tr>
             </thead>
@@ -217,6 +229,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                   </td>
                   <td className="text-right">
                     <Exploited n={r.exploited} />
+                  </td>
+                  <td>
+                    <ExposureBadge exposure={r.exposure} />
                   </td>
                   <td>
                     {r.candidate ? (

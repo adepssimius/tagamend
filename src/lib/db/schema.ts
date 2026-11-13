@@ -12,7 +12,7 @@ type Bool = number;
 
 export type DigestSource = "operator" | "candidate";
 export type ScanStatus = "queued" | "running" | "done" | "failed";
-export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync" | "auto_scan";
+export type SyncName = "report_sync" | "tag_sync" | "scan_queue" | "pr_queue" | "kev_sync" | "auto_scan" | "exposure_sync";
 export type PullRequestStatus = "queued" | "running" | "opened" | "failed";
 /** The PR on GitHub, once opened. */
 export type PullRequestState = "open" | "draft" | "merged" | "closed";
@@ -85,6 +85,10 @@ export interface WorkloadsTable {
    * unknown (its owner could not be read).
    */
   managed_by: string | null;
+  /** JSON text: the workload's exposure routes (exposure/classify.ts Route[]). Null until the first exposure sync. */
+  exposure: string | null;
+  /** The worst of those routes, for sorting and filtering (classify.ts Exposure). */
+  exposure_summary: string | null;
   /** Set when a sync no longer sees the workload for 24h; cleared if it returns. */
   gone_at: Timestamp | null;
 }

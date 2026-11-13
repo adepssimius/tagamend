@@ -88,6 +88,25 @@ only Pull requests read on that repository. With it, pages that show an open PR
 ask GitHub for its state as they load (cached 30 seconds, 3-second timeout), so
 a merge shows on the next reload. Without it, PRs show as open.
 
+## Exposure
+
+The worker works out how each workload can be reached: Ingresses that route
+to a Service selecting its pods, and LoadBalancer or NodePort Services. Each
+route gets a reach and an auth:
+
+- **Reach:** a Tailscale ingress class or Service is the tailnet. An Ingress
+  host matching one of the Settings page's internal host patterns is the LAN;
+  any other host is the internet. LoadBalancer and NodePort services follow
+  the Settings page's choice (LAN by default).
+- **Auth:** an Ingress with an `auth-url` annotation has forward auth in
+  front. A host listed in the `redirect_uris` of the OIDC client source (a
+  ConfigMap the Settings page names) logs in through OIDC. Otherwise it is the
+  app's own login, if it has one.
+
+A workload's exposure is the worst of its routes. Nothing about a particular
+cluster is built in: with no settings, every Ingress host counts as the
+internet.
+
 ## Configuration
 
 See `src/lib/config.ts` for every variable and its default, and `.env.example`.
