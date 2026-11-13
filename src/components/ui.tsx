@@ -172,7 +172,8 @@ export function Section({
         {title}
         {count !== undefined && <span className="ml-1.5 font-normal text-zinc-500">{count}</span>}
       </h2>
-      {note && <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{note}</p>}
+      {/* A div, not a p: notes can hold a form (check now). */}
+      {note && <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{note}</div>}
       <div className="mt-2">{children}</div>
     </section>
   );

@@ -11,8 +11,7 @@ import type { CveCounts } from "@/lib/queries/common";
 import { type ChartCandidateRow, type ChartPage as ChartPageData, getChartPage } from "@/lib/queries/charts";
 import { diffSummary } from "@/lib/trivy/diff";
 import { ChartPrState, ChartScanState, Delta, Exploited, SourceName } from "../components";
-// TEMPORARY: import from "@/lib/gitops/pr-state" once feat/chart-pr merges.
-import { refreshChartPrStates } from "../pr-state-stub";
+import { refreshChartPrStates } from "@/lib/gitops/pr-state";
 import { checkChartNow, openChartPullRequest, scanChartCandidate } from "./actions";
 
 export const dynamic = "force-dynamic";

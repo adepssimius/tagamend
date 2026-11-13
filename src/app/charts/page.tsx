@@ -5,8 +5,7 @@ import { Ago, Empty, mutedClass, SeverityCount, Table } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getChartList } from "@/lib/queries/charts";
-// TEMPORARY: import from "@/lib/gitops/pr-state" once feat/chart-pr merges.
-import { refreshChartPrStates } from "./pr-state-stub";
+import { refreshChartPrStates } from "@/lib/gitops/pr-state";
 
 export const dynamic = "force-dynamic";
 
