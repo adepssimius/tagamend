@@ -386,6 +386,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                         prs={t.prs}
                         scanId={t.scan?.status === "done" ? t.scan.id : null}
                         workloads={liveWorkloads.filter((w) => w.managed_by !== "none")}
+                        chartId={liveWorkloads.map((w) => (w.managed_by ? chartIds.get(w.managed_by) : undefined)).find((id) => id != null)}
                       />
                     </td>
                   )}
@@ -521,7 +522,10 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
 const workloadKey = (w: { namespace: string; kind: string; name: string }) => `${w.namespace}/${w.kind}/${w.name}`;
 
 /** One PR request: its link and state, its progress, or its failure. */
-function PrState({ pr }: { pr: PullRequest }) {
+/** A tag PR that failed because the repo sets this image's tag through a Helm chart's values. */
+const needsChart = (pr: PullRequest) => pr.status === "failed" && !!pr.error?.startsWith("no reference to ");
+
+function PrState({ pr, chartId }: { pr: PullRequest; chartId?: number }) {
   const only = pr.workloads ? (JSON.parse(pr.workloads) as string[]).map((k) => k.split("/").pop()).join(", ") : null;
   const scope = only ? <span className={`ml-1 text-xs ${mutedClass}`}>({only})</span> : null;
   if (pr.status === "opened" && pr.pr_url && pr.pr_number != null) {
@@ -545,6 +549,16 @@ function PrState({ pr }: { pr: PullRequest }) {
       </div>
     );
   }
+  if (needsChart(pr) && chartId != null) {
+    return (
+      <div className="text-xs">
+        <p>This image comes from a Helm chart, so a tag PR cannot change it.</p>
+        <Link href={`/charts/${chartId}`} className={linkClass}>
+          Bump the chart instead
+        </Link>
+      </div>
+    );
+  }
   return pr.error ? <ErrorText>{pr.error}</ErrorText> : null;
 }
 
@@ -557,10 +571,13 @@ function PrCell({
   prs,
   scanId,
   workloads,
+  chartId,
 }: {
   prs: PullRequest[];
   scanId: number | null;
   workloads: { namespace: string; kind: string; name: string }[];
+  /** The chart page of the HelmRelease that installs these workloads, if any. */
+  chartId?: number;
 }) {
   // An open PR, or a merged one whose tag is still only a candidate (Flux has
   // not rolled it out yet), covers this candidate; a closed one does not.
@@ -574,7 +591,7 @@ function PrCell({
   return (
     <div className="space-y-1">
       {prs.map((p) => (
-        <PrState key={p.id} pr={p} />
+        <PrState key={p.id} pr={p} chartId={chartId} />
       ))}
       {!scanId ? (
         prs.length === 0 && (
@@ -582,7 +599,7 @@ function PrCell({
             scan first
           </span>
         )
-      ) : allOpen || unique.length === 0 ? null : (
+      ) : allOpen || unique.length === 0 || (chartId != null && prs[0] && needsChart(prs[0])) ? null : (
         <form action={openPullRequest} className="space-y-1">
           <input type="hidden" name="scanId" value={scanId} />
           {unique.length > 1 && (
