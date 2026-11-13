@@ -240,7 +240,7 @@ for (const { name, url } of testDatabases()) {
         (await db.selectFrom("workloads").select("managed_by").where("name", "=", "demo-api").executeTakeFirstOrThrow()).managed_by;
       expect(await managed()).toBe("Kustomization flux-system/apps");
       fail = true;
-      const detail = await syncReports(ctx, { source });
+      const detail = await syncReports(ctx, { source, retryWaitMs: 0 });
       expect(detail.fluxInventoryError).toBe("429");
       expect(await managed()).toBe("Kustomization flux-system/apps");
     });

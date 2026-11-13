@@ -17,6 +17,8 @@ export interface ReportSyncOptions {
   /** Clock for last_seen_at and the gone cutoff. */
   clock?: () => Date;
   pageSize?: number;
+  /** Wait between retries of a failed Flux inventory read; tests pass 0. */
+  retryWaitMs?: number;
 }
 
 export interface ReportSyncDetail extends Record<string, unknown> {
@@ -84,7 +86,9 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
   let inventory: Map<string, string> | null = null;
   if (source.listFluxInventory) {
     try {
-      inventory = await source.listFluxInventory();
+      // The API server answers 429 when this client has many requests in
+      // flight (several loops start together); a short retry rides it out.
+      inventory = await withRetry(() => source.listFluxInventory!(), 3, opts.retryWaitMs ?? 2_000);
     } catch (e) {
       log.warn("report sync: could not read Flux inventories", { error: errorMessage(e) });
       detail.fluxInventoryError = errorMessage(e);
@@ -266,4 +270,16 @@ export function fluxManager(
     return `Kustomization ${l["kustomize.toolkit.fluxcd.io/namespace"] ?? namespace}/${l["kustomize.toolkit.fluxcd.io/name"]}`;
   }
   return l && inventory ? "none" : null;
+}
+
+/** Retries a call that fails, waiting `waitMs` times the attempt number between tries. */
+async function withRetry<T>(fn: () => Promise<T>, attempts: number, waitMs: number): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= attempts) throw e;
+      await new Promise((r) => setTimeout(r, waitMs * i));
+    }
+  }
 }
