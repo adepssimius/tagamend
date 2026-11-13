@@ -243,7 +243,11 @@ function CandidateDetail({
     row.diffs.some((d) => d.change.to?.digest && (!d.scan || d.scan.status === "failed")) ||
     row.pins.some((p) => p.pin.chartDefault?.digest && (!p.diff?.scan || p.diff.scan.status === "failed"));
   const anyScanned = row.diffs.some((d) => d.scan?.status === "done") || row.pins.some((p) => p.diff?.scan?.status === "done");
-  const openPr = row.prs.find((p) => p.status !== "failed" && (p.pr_state == null || p.pr_state === "open" || p.pr_state === "draft"));
+  // An open PR, or a merged one Flux has not installed yet (the version is
+  // still a candidate), covers this version; a closed one does not.
+  const openPr = row.prs.find(
+    (p) => p.status !== "failed" && (p.pr_state == null || p.pr_state === "open" || p.pr_state === "draft" || p.pr_state === "merged"),
+  );
   const canOpenPr = prsEnabled && !!c.rendered_at && !c.render_error && !openPr;
 
   return (

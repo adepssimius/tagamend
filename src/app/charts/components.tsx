@@ -6,7 +6,16 @@ import type { CandidateScanState } from "@/lib/queries/charts";
 /** One chart PR request: its link and state, its progress, or its failure. */
 export function ChartPrState({ pr, short = false }: { pr: ChartPullRequest; short?: boolean }) {
   if (pr.status === "opened" && pr.pr_url && pr.pr_number != null) {
-    return <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />;
+    return (
+      <span>
+        <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />
+        {pr.pr_state === "merged" && (
+          <span className={`ml-1 text-xs ${mutedClass}`} title="The PR is merged, but Flux has not installed this version yet">
+            not installed yet
+          </span>
+        )}
+      </span>
+    );
   }
   if (pr.status === "queued" || pr.status === "running") {
     return <span className={`text-xs ${mutedClass}`}>{pr.status === "queued" ? "queued" : "opening…"}</span>;

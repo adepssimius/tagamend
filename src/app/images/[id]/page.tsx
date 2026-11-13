@@ -528,6 +528,11 @@ function PrState({ pr }: { pr: PullRequest }) {
     return (
       <div>
         <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />
+        {pr.pr_state === "merged" && (
+          <span className={`ml-1 text-xs ${mutedClass}`} title="The PR is merged, but this tag is still a candidate: Flux has not rolled it out yet">
+            not running yet
+          </span>
+        )}
         {scope}
       </div>
     );
@@ -557,8 +562,13 @@ function PrCell({
   scanId: number | null;
   workloads: { namespace: string; kind: string; name: string }[];
 }) {
+  // An open PR, or a merged one whose tag is still only a candidate (Flux has
+  // not rolled it out yet), covers this candidate; a closed one does not.
   const allOpen = prs.some(
-    (p) => p.workloads == null && p.status !== "failed" && (p.pr_state == null || p.pr_state === "open" || p.pr_state === "draft"),
+    (p) =>
+      p.workloads == null &&
+      p.status !== "failed" &&
+      (p.pr_state == null || p.pr_state === "open" || p.pr_state === "draft" || p.pr_state === "merged"),
   );
   const unique = [...new Map(workloads.map((w) => [workloadKey(w), w])).values()];
   return (
