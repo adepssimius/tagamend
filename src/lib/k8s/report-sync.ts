@@ -38,7 +38,7 @@ export interface ReportSyncDetail extends Record<string, unknown> {
   /** Objects read from the API to resolve owners. */
   ownerReads: number;
   pages: number;
-  /** Workloads whose running tag changed; their images' tags are rechecked next tick. */
+  /** Workloads whose running tag or build changed; their images' tags are rechecked next tick. */
   tagChanges?: number;
   /** Workloads whose pods run an older build than the one their report scanned. */
   staleBuilds?: number;
@@ -172,18 +172,19 @@ export async function syncReports(ctx: WorkerContext, opts: ReportSyncOptions = 
         pod_digest: podDigest,
         gone_at: null,
       };
-      // A running tag that changed (an upgrade rolled out) makes the image's
-      // candidates stale, so its tags are checked again on the next tick
-      // instead of after the full interval.
+      // A running tag or build that changed makes the image's candidates
+      // stale, so its tags are checked again on the next tick instead of after
+      // the full interval: an upgrade rolled out, or the build a pod actually
+      // runs was just scanned (its tag's newer digest then becomes a candidate).
       const before = await db
         .selectFrom("workloads")
-        .select("tag")
+        .select(["tag", "digest_id"])
         .where("namespace", "=", row.namespace)
         .where("kind", "=", row.kind)
         .where("name", "=", row.name)
         .where("container", "=", row.container)
         .executeTakeFirst();
-      if (before && before.tag !== row.tag) {
+      if (before && (before.tag !== row.tag || before.digest_id !== row.digest_id)) {
         await db.updateTable("images").set({ last_tag_sync_at: null }).where("id", "=", imageId).execute();
         detail.tagChanges = (detail.tagChanges ?? 0) + 1;
       }

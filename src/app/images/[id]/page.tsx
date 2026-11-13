@@ -25,7 +25,7 @@ import { getDb } from "@/lib/db";
 import type { PullRequest } from "@/lib/db/schema";
 import { getImagePage } from "@/lib/queries/image";
 import { kevFor } from "@/lib/queries/kev";
-import { openPullRequest, scanRunningBuild, scanTag } from "./actions";
+import { checkTagsNow, openPullRequest, scanRunningBuild, scanTag } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -93,18 +93,27 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
             <span className="font-mono">{b.tag ?? "this image"}</span>: <ShortDigest digest={b.podDigest} />.
           </p>
           {b.scanned ? (
-            <p className="mt-1 text-amber-900/80 dark:text-amber-200/80">
-              The CVEs below are for that build. What <span className="font-mono">{b.tag}</span> points to now
-              {b.reportDigest && (
-                <>
-                  {" "}
-                  (<ShortDigest digest={b.reportDigest} />)
-                </>
-              )}{" "}
-              shows up as a candidate after the next tag check. Scan it to see the diff, then open a PR that pins the
-              digest. A restart alone may not update it: a node with the tag cached reuses the old build unless the pod
-              pulls Always.
-            </p>
+            <div className="mt-1 text-amber-900/80 dark:text-amber-200/80">
+              <p>The CVEs below are for that build. To update it:</p>
+              <ol className="mt-0.5 list-decimal pl-5">
+                <li>
+                  In Candidate tags, find <span className="font-mono">{b.tag}</span>
+                  {b.reportDigest && (
+                    <>
+                      {" "}
+                      at <ShortDigest digest={b.reportDigest} />
+                    </>
+                  )}
+                  , what the tag points to now. Click Scan to see the diff.
+                </li>
+                <li>Click Open PR. The PR pins the tag to that digest.</li>
+                <li>Merge it. Flux rolls the workload, and the node pulls the pinned build.</li>
+              </ol>
+              <p className="mt-0.5">
+                A restart alone does not update it: a node with the tag cached reuses the old build unless the pod pulls
+                Always.
+              </p>
+            </div>
           ) : (
             <div className="mt-1 flex flex-wrap items-center gap-2 text-amber-900/80 dark:text-amber-200/80">
               <p>
@@ -198,7 +207,15 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
         count={candidates.length}
         note={
           <>
-            Tag sync: <Ago iso={image.last_tag_sync_at} />
+            Tag sync: {image.last_tag_sync_at ? <Ago iso={image.last_tag_sync_at} /> : "due, within a minute"}
+            {image.last_tag_sync_at && (
+              <form action={checkTagsNow} className="ml-2 inline">
+                <input type="hidden" name="imageId" value={image.id} />
+                <button type="submit" className={`${linkClass} text-xs`}>
+                  check now
+                </button>
+              </form>
+            )}
             {pinnedByDigest && " · Running by digest only, so there are no tags to compare."}
           </>
         }

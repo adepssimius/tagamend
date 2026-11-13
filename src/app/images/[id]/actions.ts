@@ -57,3 +57,13 @@ export async function scanRunningBuild(formData: FormData): Promise<void> {
   revalidatePath(`/images/${imageId}`);
   revalidatePath("/status");
 }
+
+/** Makes the image's tags due, so the worker checks them within a minute. */
+export async function checkTagsNow(formData: FormData): Promise<void> {
+  await requireUser();
+  const imageId = Number(formData.get("imageId"));
+  if (!Number.isInteger(imageId)) throw new Error("checkTagsNow: bad imageId");
+  const db = await getDb();
+  await db.updateTable("images").set({ last_tag_sync_at: null }).where("id", "=", imageId).execute();
+  revalidatePath(`/images/${imageId}`);
+}

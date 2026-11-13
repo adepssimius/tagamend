@@ -210,8 +210,12 @@ for (const { name, url } of testDatabases()) {
 
       const imageId = (await db.selectFrom("workloads").select("image_id").where("name", "=", "demo-api").executeTakeFirstOrThrow()).image_id;
       await storeDigest(db, imageId, "candidate", { digest: older, osFamily: null, osName: null, scannedAt: "2026-11-01T00:00:00Z", reportUpdatedAt: null, scannerVersion: null, findings: [] }, ["HIGH"]);
+      await db.updateTable("images").set({ last_tag_sync_at: "2026-11-12T00:00:00Z" }).where("id", "=", imageId).execute();
       await syncReports(ctx, { source });
       expect(await row()).toEqual({ pod_digest: older, report_digest: reported, running: older });
+      // The running build changed, so the tag's newer digest is checked for at once.
+      const due = await db.selectFrom("images").select("last_tag_sync_at").where("id", "=", imageId).executeTakeFirstOrThrow();
+      expect(due.last_tag_sync_at).toBeNull();
 
       // Pod restarted onto the reported build: no longer stale.
       source.podImages = [{ ...source.podImages[0]!, digest: reported }];
