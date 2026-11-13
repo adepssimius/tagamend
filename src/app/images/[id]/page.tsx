@@ -25,6 +25,7 @@ import { getConfig } from "@/lib/config";
 import { refreshPrStates } from "@/lib/gitops/pr-state";
 import { getDb } from "@/lib/db";
 import type { PullRequest } from "@/lib/db/schema";
+import { chartIdsByManagedBy } from "@/lib/queries/charts";
 import { getImagePage } from "@/lib/queries/image";
 import { kevFor } from "@/lib/queries/kev";
 import { checkTagsNow, openPullRequest, scanRunningBuild, scanTag } from "./actions";
@@ -45,6 +46,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
   if (!page) notFound();
   const { image, workloads, runningDigests, vulns, cveCount, tags, pinnedByDigest, runningCounts, staleBuilds, recentScans } = page;
   const kev = await kevFor(db, vulns.map((v) => v.vuln_id));
+  const chartIds = await chartIdsByManagedBy(db, workloads.map((w) => w.managed_by));
   const exploited = new Set(vulns.map((v) => v.vuln_id).filter((id) => kev.has(id))).size;
   // Known-exploited first; the query's severity order holds within each group.
   const sortedVulns = [...vulns].sort((a, b) => Number(kev.has(b.vuln_id)) - Number(kev.has(a.vuln_id)));
@@ -201,6 +203,10 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                       </span>
                     ) : w.managed_by === "none" ? (
                       <span className="text-amber-700 dark:text-amber-300">not Flux</span>
+                    ) : chartIds.has(w.managed_by) ? (
+                      <Link href={`/charts/${chartIds.get(w.managed_by)}`} className={linkClass} title="See this HelmRelease's chart versions">
+                        {w.managed_by}
+                      </Link>
                     ) : (
                       w.managed_by
                     )}
