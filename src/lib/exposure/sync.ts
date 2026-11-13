@@ -42,6 +42,12 @@ export interface ExposureSource {
   listIngressClasses(): Promise<{ controllers: Map<string, string>; defaultClass: string | null }>;
   /** A ConfigMap key's text, or null. */
   readConfigMap(namespace: string, name: string, key: string): Promise<string | null>;
+  /**
+   * Asks a forward-auth service whether an anonymous GET of `url` passes, the
+   * way ingress-nginx's auth_request does: true for a 2xx answer, false for any
+   * other. Throws when the service cannot be reached.
+   */
+  anonymousPasses(authUrl: string, url: string): Promise<boolean>;
 }
 
 const matches = (selector: Labels, labels: Labels) =>
@@ -137,6 +143,22 @@ export async function syncExposure(ctx: WorkerContext, opts: { source?: Exposure
     }
   }
 
+  // One probe per (auth service, URL); many routes share both.
+  const probes = new Map<string, Promise<boolean | null>>();
+  const probe = (authUrl: string, url: string) => {
+    const k = `${authUrl} ${url}`;
+    let p = probes.get(k);
+    if (!p) {
+      p = source.anonymousPasses(authUrl, url).catch((e) => {
+        log.warn("exposure sync: forward-auth check failed", { authUrl, url, error: errorMessage(e) });
+        return null;
+      });
+      probes.set(k, p);
+    }
+    return p;
+  };
+  let bypassed = 0;
+
   for (const ing of ingresses) {
     const cls = ing.className ?? ing.annotations["kubernetes.io/ingress.class"] ?? classes.defaultClass;
     const tailnet = !!cls && (classes.controllers.get(cls) ?? "").includes("tailscale");
@@ -150,21 +172,36 @@ export async function syncExposure(ctx: WorkerContext, opts: { source?: Exposure
       }
     }
     const object = `Ingress ${ing.namespace}/${ing.name}`;
-    const routeFor = (host: string | null, path: string | null): Route => {
+    const routeFor = async (host: string | null, path: string | null): Promise<Route> => {
       const h = (host ?? "*").toLowerCase();
+      const appAuth = oidcHosts.has(h) ? "oidc" : "app";
+      let auth: Route["auth"] = authUrl ? "forward-auth" : appAuth;
+      let forwardAuth: Route["forwardAuth"];
+      if (authUrl && host) {
+        // The annotation says forward auth; ask whether it actually stops anyone.
+        const passes = await probe(authUrl, `https://${h}${path && path !== "/" ? path : "/"}`);
+        if (passes === true) {
+          auth = appAuth;
+          forwardAuth = "bypassed";
+          bypassed++;
+        } else if (passes === null) {
+          forwardAuth = "unchecked";
+        }
+      }
       return {
         via: "ingress",
         address: `${h}${path && path !== "/" ? path : ""}`,
         object,
         reach: tailnet ? "tailnet" : host ? hostReach(h, settings.internalHostPatterns) : "internet",
-        auth: authUrl ? "forward-auth" : oidcHosts.has(h) ? "oidc" : "app",
+        auth,
         ...(authBy ? { authBy } : {}),
+        ...(forwardAuth ? { forwardAuth } : {}),
       };
     };
     for (const rule of ing.rules) {
-      for (const p of rule.paths) if (p.service) add(`${ing.namespace}/${p.service}`, routeFor(rule.host, p.path));
+      for (const p of rule.paths) if (p.service) add(`${ing.namespace}/${p.service}`, await routeFor(rule.host, p.path));
     }
-    if (ing.defaultService) add(`${ing.namespace}/${ing.defaultService}`, routeFor(null, null));
+    if (ing.defaultService) add(`${ing.namespace}/${ing.defaultService}`, await routeFor(null, null));
   }
 
   // Write every live workload row: routes, or none.
@@ -181,6 +218,7 @@ export async function syncExposure(ctx: WorkerContext, opts: { source?: Exposure
     exposed,
     ingresses: ingresses.length,
     oidcHosts: oidcHosts.size,
+    forwardAuthBypassed: bypassed,
     ...(oidcError ? { oidcError } : {}),
   };
 }

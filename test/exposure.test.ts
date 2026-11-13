@@ -71,6 +71,14 @@ const fake = (oidcConfig: string): ExposureSource => ({
       ing("books", "books.example.com"),
       ing("media", "media.example.com"),
       ing("admin", "admin.int.example.com", { "nginx.ingress.kubernetes.io/auth-url": "http://auth.svc.local/api/verify" }),
+      {
+        namespace: "m",
+        name: "open",
+        className: "nginx",
+        annotations: { "nginx.ingress.kubernetes.io/auth-url": "http://auth.svc.local/api/verify" },
+        rules: [{ host: "open.int.example.com", paths: [{ path: "/", service: "media" }] }],
+        defaultService: null,
+      },
     ];
   },
   async listIngressClasses() {
@@ -78,6 +86,10 @@ const fake = (oidcConfig: string): ExposureSource => ({
   },
   async readConfigMap() {
     return oidcConfig;
+  },
+  async anonymousPasses(_authUrl: string, url: string) {
+    // The auth service bypasses the "open" host; everything else needs a login.
+    return url.startsWith("https://open.int.example.com");
   },
 });
 
@@ -105,6 +117,9 @@ for (const { name, url } of testDatabases()) {
         media: "internet-app",
         sync: "lan",
       });
+      const media = JSON.parse(rows.find((r) => r.name === "media")!.exposure!) as Route[];
+      // Forward auth is configured on open.int but lets anonymous requests through.
+      expect(media.find((r) => r.address === "open.int.example.com")).toMatchObject({ auth: "app", forwardAuth: "bypassed" });
       const admin = JSON.parse(rows.find((r) => r.name === "admin")!.exposure!) as Route[];
       expect(admin).toEqual([{ via: "ingress", address: "admin.int.example.com", object: "Ingress m/admin", reach: "lan", auth: "forward-auth", authBy: "auth.svc.local" }]);
 

@@ -16,6 +16,12 @@ export interface Route {
   auth: "forward-auth" | "oidc" | "app";
   /** forward-auth: the auth service's host. */
   authBy?: string;
+  /**
+   * The Ingress names a forward-auth service, but an anonymous request
+   * passes it (an auth rule that bypasses this host), so `auth` is "app".
+   * "unchecked" when the auth service could not be asked.
+   */
+  forwardAuth?: "bypassed" | "unchecked";
 }
 
 /** Worst first: what a workload's summary shows. */

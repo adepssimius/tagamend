@@ -35,5 +35,9 @@ export function ExposureBadge({ exposure }: { exposure: Exposure | null }) {
 const AUTH: Record<Route["auth"], string> = { "forward-auth": "forward auth", oidc: "OIDC", app: "app login" };
 
 export function routeAuth(r: Route): string {
-  return r.auth === "forward-auth" && r.authBy ? `forward auth (${r.authBy})` : AUTH[r.auth];
+  if (r.forwardAuth === "bypassed") {
+    return `${AUTH[r.auth]}; forward auth${r.authBy ? ` (${r.authBy})` : ""} lets anonymous requests through`;
+  }
+  const base = r.auth === "forward-auth" && r.authBy ? `forward auth (${r.authBy})` : AUTH[r.auth];
+  return r.forwardAuth === "unchecked" ? `${base}, not checked` : base;
 }

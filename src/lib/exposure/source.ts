@@ -66,6 +66,26 @@ export function k8sExposureSource(): ExposureSource {
       }
       return { controllers, defaultClass };
     },
+    async anonymousPasses(authUrl, url) {
+      const u = new URL(url);
+      // The headers ingress-nginx sends on its auth subrequest, with no
+      // credentials and no session cookie.
+      const res = await fetch(authUrl, {
+        method: "GET",
+        redirect: "manual",
+        signal: AbortSignal.timeout(3_000),
+        headers: {
+          "X-Original-URL": url,
+          "X-Original-Method": "GET",
+          "X-Forwarded-Method": "GET",
+          "X-Forwarded-Proto": u.protocol.replace(":", ""),
+          "X-Forwarded-Host": u.host,
+          "X-Forwarded-Uri": `${u.pathname}${u.search}`,
+          "User-Agent": "tagamend",
+        },
+      });
+      return res.status >= 200 && res.status < 300;
+    },
     async readConfigMap(namespace, name, key) {
       const cm = await core.readNamespacedConfigMap({ namespace, name });
       return cm.data?.[key] ?? null;
