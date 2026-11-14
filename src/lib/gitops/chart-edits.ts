@@ -88,8 +88,11 @@ export function planChartEdits(
     throw new ChartEditError(`${version.kind} ${version.namespace}/${version.name} (${version.path}) already has ${version.field}: ${opts.toVersion}`);
   }
 
-  // Pinned image tags.
+  // Pinned image tags. One values key can hold several images (a shared
+  // default such as controllers.main...image.tag), so the chart sync lists it
+  // once per image; it is edited once.
   const pins: PinOutcome[] = [];
+  const plannedPaths = new Map<string, string>();
   for (const pin of opts.pins) {
     const target = pin.chartDefault?.tag ?? null;
     if (!opts.updatePins) {
@@ -110,6 +113,18 @@ export function planChartEdits(
     if (!target) {
       throw new ChartEditError(`the candidate chart's default tag for ${pin.kind}/${pin.name} is not known, so its pin at spec.values.${pin.valuesPath.join(".")} cannot move; open the PR without moving pins`);
     }
+    const pathKey = JSON.stringify(pin.valuesPath);
+    const already = plannedPaths.get(pathKey);
+    if (already !== undefined) {
+      if (already !== target) {
+        throw new ChartEditError(
+          `spec.values.${pin.valuesPath.join(".")} holds images whose chart defaults differ (${already} and ${target}); move it by hand`,
+        );
+      }
+      pins.push({ pin, outcome: "moved" });
+      continue;
+    }
+    plannedPaths.set(pathKey, target);
     const keyPath = ["spec", "values", ...pin.valuesPath];
     let planned: ReturnType<typeof planScalar>;
     try {

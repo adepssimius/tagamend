@@ -88,6 +88,31 @@ describe("planChartEdits", () => {
     expect(out.split("\n")).toHaveLength(HR.split("\n").length);
   });
 
+  it("edits a values key shared by two images once", () => {
+    const shared = ["server", "image", "tag"];
+    const plan = planChartEdits(files(), {
+      namespace: "apps",
+      name: "demo",
+      toVersion: "1.3.0",
+      pins: [
+        { ...pin(shared, "v1.2.0", "v1.3.0"), key: "Deployment/a:image", name: "a" },
+        { ...pin(shared, "v1.2.0", "v1.3.0"), key: "Deployment/b:image", name: "b" },
+      ],
+      updatePins: true,
+    });
+    expect(plan.pins.map((p) => p.outcome)).toEqual(["moved", "moved"]);
+    expect(plan.edits).toHaveLength(2); // the chart version and the one shared pin
+    expect(() =>
+      planChartEdits(files(), {
+        namespace: "apps",
+        name: "demo",
+        toVersion: "1.3.0",
+        pins: [pin(shared, "v1.2.0", "v1.3.0"), pin(shared, "v1.2.0", "v9.9.9")],
+        updatePins: true,
+      }),
+    ).toThrow("chart defaults differ");
+  });
+
   it("lists a pin set in a valuesFrom ConfigMap instead of failing", () => {
     const plan = planChartEdits(files(), {
       namespace: "apps",
