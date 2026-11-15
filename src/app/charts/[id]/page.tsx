@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Ago, Empty, ErrorText, linkClass, mutedClass, ScanStatusBadge, Section, SeverityCount, ShortDigest, Table } from "@/components/ui";
 import type { ChartChangeDiff } from "@/lib/charts/diff";
 import type { ChartImage } from "@/lib/charts/types";
+import type { ChartPullRequest } from "@/lib/db/schema";
 import { getConfig } from "@/lib/config";
 import { getDb } from "@/lib/db";
 import type { CveCounts } from "@/lib/queries/common";
@@ -248,7 +249,10 @@ function CandidateDetail({
   const openPr = row.prs.find(
     (p) => p.status !== "failed" && (p.pr_state == null || p.pr_state === "open" || p.pr_state === "draft" || p.pr_state === "merged"),
   );
-  const canOpenPr = prsEnabled && !!c.rendered_at && !c.render_error && !openPr;
+  const canOpenPr = prsEnabled && !!c.is_candidate && !!c.rendered_at && !c.render_error && !openPr;
+  // A version that left the candidate list has no change set to show: its
+  // old one was against images that no longer run.
+  const isCurrent = !c.is_candidate;
 
   return (
     <section id="candidate" className="mt-8 rounded border border-zinc-200 p-3 dark:border-zinc-800">
@@ -256,11 +260,13 @@ function CandidateDetail({
         <h2 className="text-sm font-semibold">
           Version <span className="font-mono">{c.version}</span>
           {c.app_version && <span className={`ml-2 font-normal ${mutedClass}`}>app {c.app_version}</span>}
-          {!c.is_candidate && <span className={`ml-2 text-xs font-normal ${mutedClass}`}>not a candidate</span>}
+          {!c.is_candidate && (
+            <span className={`ml-2 text-xs font-normal ${mutedClass}`}>{c.reason === "installed" ? "installed" : "not a candidate"}</span>
+          )}
         </h2>
         <p className={`text-xs ${mutedClass}`}>
-          {c.reason}
-          {c.rendered_at && (
+          {c.reason !== "installed" && c.reason}
+          {!isCurrent && c.rendered_at && (
             <>
               {c.reason && " · "}rendered <Ago iso={c.rendered_at} />
             </>
@@ -275,7 +281,7 @@ function CandidateDetail({
       )}
 
       <div className="mt-3 flex flex-wrap items-start gap-4">
-        {(row.scannable > 0 || pinTargets > 0) && (
+        {!isCurrent && (row.scannable > 0 || pinTargets > 0) && (
           <div>
             {toScan ? (
               <form action={scanChartCandidate}>
@@ -289,9 +295,9 @@ function CandidateDetail({
         )}
         {prsEnabled && (
           <div className="space-y-1">
-            {row.prs.map((p) => (
+            {visiblePrs(row.prs).map((p) => (
               <div key={p.id} className="flex flex-wrap items-center gap-1.5 text-xs">
-                <ChartPrState pr={p} />
+                <ChartPrState pr={p} landed={!c.is_candidate} />
                 {p.update_pins === 1 && <span className={mutedClass}>moves pinned tags</span>}
                 {p.requested_by && (
                   <span className={mutedClass}>
@@ -325,6 +331,14 @@ function CandidateDetail({
         )}
       </div>
 
+      {isCurrent ? (
+        <p className={`mt-4 text-xs ${mutedClass}`}>
+          {c.reason === "installed"
+            ? "This version is installed. Current images above shows what it runs."
+            : "This version is no longer a candidate, so there is no change set to show."}
+        </p>
+      ) : (
+      <>
       <h3 className="mt-4 text-xs font-semibold">
         Images this version changes <span className={`font-normal ${mutedClass}`}>{row.diffs.length}</span>
       </h3>
@@ -389,8 +403,20 @@ function CandidateDetail({
           )}
         </>
       )}
+      </>
+      )}
     </section>
   );
+}
+
+/** PR requests to list: a failed attempt is hidden once a later one opened a PR. */
+function visiblePrs(prs: ChartPullRequest[]): ChartPullRequest[] {
+  // Newest first, so an opened PR is seen before the failures it supersedes.
+  let opened = false;
+  return prs.filter((p) => {
+    if (p.status === "opened") opened = true;
+    return !(p.status === "failed" && opened);
+  });
 }
 
 interface ImageRow {

@@ -56,7 +56,7 @@ export default async function ChartsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ chart, running, best, candidateCount, pr, workloads }) => (
+              {rows.map(({ chart, running, best, candidateCount, pr, prLanded, workloads }) => (
                 <tr key={chart.id}>
                   <td className="whitespace-nowrap">
                     <Link href={`/charts/${chart.id}`} className="hover:underline">
@@ -121,7 +121,7 @@ export default async function ChartsPage() {
                   <td>
                     {pr && (
                       <div className="flex items-center gap-1.5">
-                        <ChartPrState pr={pr} short />
+                        <ChartPrState pr={pr} short landed={prLanded} />
                         <span className={`font-mono text-xs ${mutedClass}`}>{pr.to_version}</span>
                       </div>
                     )}

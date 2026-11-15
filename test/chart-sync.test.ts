@@ -260,8 +260,20 @@ for (const { name, url } of testDatabases()) {
         ["1.5.0", 1],
         ["2.0.0", 1],
       ]);
-      expect(cands[0]!.reason).toMatch(/no longer offered/);
+      // Overtaken: its change set was against images that no longer run.
+      expect(cands[0]).toMatchObject({ reason: "older than installed 1.1.0", changes: null, pinned: null, rendered_at: null });
       expect(cands.find((c) => c.version === "2.0.0")!.first_seen_at).toBe(new Date(NOW).toISOString());
+
+      // A PR for 1.5.0 merges and Flux installs it.
+      const c150 = cands.find((c) => c.version === "1.5.0")!;
+      await db
+        .insertInto("chart_pull_requests")
+        .values({ chart_id: chart!.id, candidate_id: c150.id, to_version: "1.5.0", update_pins: 0, status: "opened", requested_by: "u", requested_at: "2026-11-08T00:00:00Z" })
+        .execute();
+      world.releases = [demoRelease("1.5.0")];
+      await run(world, { now: NOW + 3 * HOUR, fingerprints });
+      const after = await candidateRows(db, chart!.id);
+      expect(after.find((c) => c.version === "1.5.0")).toMatchObject({ is_candidate: 0, reason: "installed", changes: null, rendered_at: null });
     });
 
     it("re-checks when the HelmRelease's spec changes, and is due again after the interval", async () => {

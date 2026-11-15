@@ -4,16 +4,21 @@ import type { ChartPullRequest } from "@/lib/db/schema";
 import type { CandidateScanState } from "@/lib/queries/charts";
 
 /** One chart PR request: its link and state, its progress, or its failure. */
-export function ChartPrState({ pr, short = false }: { pr: ChartPullRequest; short?: boolean }) {
+export function ChartPrState({ pr, short = false, landed = false }: { pr: ChartPullRequest; short?: boolean; landed?: boolean }) {
   if (pr.status === "opened" && pr.pr_url && pr.pr_number != null) {
     return (
       <span>
         <PrLink number={pr.pr_number} url={pr.pr_url} state={pr.pr_state} />
-        {pr.pr_state === "merged" && (
-          <span className={`ml-1 text-xs ${mutedClass}`} title="The PR is merged, but Flux has not installed this version yet">
-            not installed yet
-          </span>
-        )}
+        {pr.pr_state === "merged" &&
+          (landed ? (
+            <span className={`ml-1 text-xs ${mutedClass}`} title="Flux installed this version or a newer one">
+              installed
+            </span>
+          ) : (
+            <span className={`ml-1 text-xs ${mutedClass}`} title="The PR is merged, but Flux has not installed this version yet">
+              not installed yet
+            </span>
+          ))}
       </span>
     );
   }

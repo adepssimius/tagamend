@@ -11,7 +11,7 @@ import { HelmWorkspace, type HelmRunner, spawnHelm } from "./helm";
 import { diffImages, extractImages } from "./images";
 import type { ChartImage, ChartImageChange, PinnedImage } from "./types";
 import { findTagKeys, isMap, mergeLayers, type Values, type ValuesLayer, valuesAtTargetPath, withoutKey } from "./values";
-import { type ChartVersion, chooseChartCandidates, fetchIndex, listOciVersions, parseIndex, parseSemver } from "./versions";
+import { type ChartVersion, chooseChartCandidates, compareSemver, fetchIndex, listOciVersions, parseIndex, parseSemver } from "./versions";
 
 /** Where chart sync reads the cluster. Injectable so tests need no cluster. Read-only. */
 export interface ChartSource {
@@ -326,13 +326,18 @@ async function syncChart(
         ).map((p) => p.candidate_id),
       );
       const drop = stale.filter((s) => !withPr.has(s.id)).map((s) => s.id);
-      const keep = stale.filter((s) => withPr.has(s.id)).map((s) => s.id);
       if (drop.length) await trx.deleteFrom("chart_candidates").where("id", "in", drop).execute();
-      if (keep.length) {
+      // Its render was diffed against images that no longer run, so drop it
+      // rather than show a stale change set.
+      for (const s of stale.filter((s) => withPr.has(s.id))) {
+        const v = parseSemver(s.version);
+        const cmp = v ? compareSemver(v, parseSemver(installed)!) : 1;
+        const reason =
+          cmp === 0 ? "installed" : cmp < 0 ? `older than installed ${installed}` : `no longer offered over installed ${installed}`;
         await trx
           .updateTable("chart_candidates")
-          .set({ is_candidate: 0, reason: `no longer offered over installed ${installed}` })
-          .where("id", "in", keep)
+          .set({ is_candidate: 0, reason, changes: null, pinned: null, rendered_at: null, render_error: null })
+          .where("id", "=", s.id)
           .execute();
       }
     }

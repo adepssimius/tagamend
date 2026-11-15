@@ -38,6 +38,8 @@ export interface ChartListRow {
   best: (CandidateScanState & { candidate: ChartCandidate }) | null;
   /** The newest chart PR request for this HelmRelease. */
   pr: ChartPullRequest | null;
+  /** That PR's version has left the candidate list: installed, or overtaken. */
+  prLanded: boolean;
 }
 
 const parse = <T>(text: string | null): T[] => (text ? (JSON.parse(text) as T[]) : []);
@@ -133,6 +135,7 @@ export async function getChartList(db: DB): Promise<ChartListRow[]> {
     liveWorkloads(db),
     imageIds(db),
   ]);
+  const candidateIds = new Set(candidates.map((c) => c.id));
   const bestByChart = new Map<number, ChartCandidate>();
   const countByChart = new Map<number, number>();
   for (const c of sortChartCandidates(candidates)) {
@@ -149,13 +152,15 @@ export async function getChartList(db: DB): Promise<ChartListRow[]> {
     const ref = helmReleaseRef(chart);
     const workloads = live.filter((w) => w.managed_by === ref);
     const best = bestByChart.get(chart.id);
+    const pr = prs.find((p) => p.chart_id === chart.id) ?? null;
     rows.push({
       chart,
       workloads: new Set(workloads.map((w) => `${w.namespace}/${w.kind}/${w.name}`)).size,
       running: await countsForWorkloads(db, workloads),
       candidateCount: countByChart.get(chart.id) ?? 0,
       best: best ? { candidate: best, ...scanStateOf(candidateChanges(best), ids, scans) } : null,
-      pr: prs.find((p) => p.chart_id === chart.id) ?? null,
+      pr,
+      prLanded: pr != null && !candidateIds.has(pr.candidate_id),
     });
   }
   return rows.sort(
