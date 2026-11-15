@@ -8,6 +8,7 @@ import * as m006 from "./006_pr_workloads";
 import * as m007 from "./007_managed_by";
 import * as m008 from "./008_exposure";
 import * as m009 from "./009_charts";
+import * as m010 from "./010_chart_image_moves";
 
 /**
  * Migrations are imported statically, not read from a folder at runtime, so
@@ -24,4 +25,5 @@ export const migrations: Record<string, Migration> = {
   "007_managed_by": m007,
   "008_exposure": m008,
   "009_charts": m009,
+  "010_chart_image_moves": m010,
 };

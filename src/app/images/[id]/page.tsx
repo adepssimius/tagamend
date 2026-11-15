@@ -387,6 +387,7 @@ export default async function ImagePage({ params }: { params: Promise<{ id: stri
                         scanId={t.scan?.status === "done" ? t.scan.id : null}
                         workloads={liveWorkloads.filter((w) => w.managed_by !== "none")}
                         chartId={liveWorkloads.map((w) => (w.managed_by ? chartIds.get(w.managed_by) : undefined)).find((id) => id != null)}
+                        moveHref={`?imageId=${image.id}&tag=${encodeURIComponent(t.tag)}`}
                       />
                     </td>
                   )}
@@ -572,13 +573,29 @@ function PrCell({
   scanId,
   workloads,
   chartId,
+  moveHref,
 }: {
   prs: PullRequest[];
   scanId: number | null;
   workloads: { namespace: string; kind: string; name: string }[];
   /** The chart page of the HelmRelease that installs these workloads, if any. */
   chartId?: number;
+  /** Query string that preselects this tag in the chart page's Move images form. */
+  moveHref?: string;
 }) {
+  // A Helm chart sets this image: its tag is moved in the HelmRelease's values, from the chart page.
+  if (chartId != null) {
+    return (
+      <div className="space-y-1">
+        {prs.map((p) => (
+          <PrState key={p.id} pr={p} />
+        ))}
+        <Link href={`/charts/${chartId}${moveHref ?? ""}#move`} className={`text-xs ${linkClass}`} title="A Helm chart sets this image; move its tag in the HelmRelease's values">
+          Move on chart page
+        </Link>
+      </div>
+    );
+  }
   // An open PR, or a merged one whose tag is still only a candidate (Flux has
   // not rolled it out yet), covers this candidate; a closed one does not.
   const allOpen = prs.some(

@@ -4,7 +4,15 @@ import type { ChartPullRequest } from "@/lib/db/schema";
 import type { CandidateScanState } from "@/lib/queries/charts";
 
 /** One chart PR request: its link and state, its progress, or its failure. */
-export function ChartPrState({ pr, short = false, landed = false }: { pr: ChartPullRequest; short?: boolean; landed?: boolean }) {
+export function ChartPrState({
+  pr,
+  short = false,
+  landed = false,
+}: {
+  pr: Pick<ChartPullRequest, "status" | "pr_url" | "pr_number" | "pr_state" | "error">;
+  short?: boolean;
+  landed?: boolean;
+}) {
   if (pr.status === "opened" && pr.pr_url && pr.pr_number != null) {
     return (
       <span>

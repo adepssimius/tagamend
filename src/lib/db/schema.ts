@@ -196,6 +196,8 @@ export interface ChartsTable {
   current_images: string | null;
   /** Notes about the render, such as a valuesFrom Secret that was skipped. */
   render_note: string | null;
+  /** JSON text: ImageTagKey[], the values key that sets each current image's tag. */
+  image_keys: string | null;
   /** Set when the HelmRelease no longer exists. */
   gone_at: Timestamp | null;
 }
@@ -246,6 +248,27 @@ export interface ChartPullRequestsTable {
   error: string | null;
 }
 
+/** A PR that sets image tags in a HelmRelease's values, independent of the chart version. */
+export interface ChartImagePrsTable {
+  id: Generated<number>;
+  chart_id: number;
+  /** JSON text: ImageMoveTarget[]. */
+  targets: string;
+  status: ChartPrStatus;
+  requested_by: string | null;
+  requested_at: Timestamp;
+  started_at: Timestamp | null;
+  finished_at: Timestamp | null;
+  branch: string | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  pr_state: PullRequestState | null;
+  pr_state_checked_at: Timestamp | null;
+  /** JSON text: ChartEdit[]. */
+  edits: string | null;
+  error: string | null;
+}
+
 /** Small key/value facts, such as the Trivy server version. */
 export interface KvTable {
   key: string;
@@ -266,6 +289,7 @@ export interface Database {
   charts: ChartsTable;
   chart_candidates: ChartCandidatesTable;
   chart_pull_requests: ChartPullRequestsTable;
+  chart_image_prs: ChartImagePrsTable;
   kv: KvTable;
 }
 
@@ -283,6 +307,7 @@ export type Kev = Selectable<KevTable>;
 export type Chart = Selectable<ChartsTable>;
 export type ChartCandidate = Selectable<ChartCandidatesTable>;
 export type ChartPullRequest = Selectable<ChartPullRequestsTable>;
+export type ChartImagePr = Selectable<ChartImagePrsTable>;
 
 // Silence "unused" for ColumnType in case a later table needs it.
 export type _Unused = ColumnType<never>;

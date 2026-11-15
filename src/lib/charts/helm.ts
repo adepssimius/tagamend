@@ -129,6 +129,13 @@ export class HelmWorkspace {
     }
   }
 
+  /** The chart's own default values.yaml, as `helm show values` prints it. */
+  async showValues(chartPath: string): Promise<string> {
+    const r = await this.helm(["show", "values", chartPath]);
+    if (r.code !== 0) throw failure(`helm show values ${path.basename(chartPath)}`, r);
+    return r.stdout;
+  }
+
   async close(): Promise<void> {
     if (this.dir) await rm(this.dir, { recursive: true, force: true });
     this.dir = undefined;

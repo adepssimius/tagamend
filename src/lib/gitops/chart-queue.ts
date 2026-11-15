@@ -7,6 +7,7 @@ import { errorMessage } from "../log";
 import { kevFor } from "../queries/kev";
 import type { WorkerContext } from "../worker-context";
 import { planChartEdits } from "./chart-edits";
+import { runImageMoveQueue } from "./chart-image-moves";
 import { buildChartPrContent } from "./chart-pr-body";
 import { ChartEditError } from "./chart-yaml";
 import { gitHubClient } from "./github";
@@ -37,7 +38,7 @@ export async function runChartPrQueue(ctx: WorkerContext, deps: PrQueueDeps = {}
     .orderBy("id")
     .limit(1)
     .executeTakeFirst();
-  if (!next) return { idle: true };
+  if (!next) return runImageMoveQueue(ctx, deps);
 
   const claimed = await db
     .updateTable("chart_pull_requests")

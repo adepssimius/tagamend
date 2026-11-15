@@ -9,8 +9,8 @@ import type { WorkerContext } from "../worker-context";
 import { type ChartRelease, describeRelease, indexSources, type K8sObject } from "./discover";
 import { HelmWorkspace, type HelmRunner, spawnHelm } from "./helm";
 import { diffImages, extractImages } from "./images";
-import type { ChartImage, ChartImageChange, PinnedImage } from "./types";
-import { findTagKeys, isMap, mergeLayers, type Values, type ValuesLayer, valuesAtTargetPath, withoutKey } from "./values";
+import type { ChartImage, ChartImageChange, ImageTagKey, PinnedImage } from "./types";
+import { deepMerge, findTagKeys, findTagSlots, getAt, isMap, mergeLayers, setAt, type Values, type ValuesLayer, valuesAtTargetPath, withoutKey } from "./values";
 import { type ChartVersion, chooseChartCandidates, compareSemver, fetchIndex, listOciVersions, parseIndex, parseSemver } from "./versions";
 
 /** Where chart sync reads the cluster. Injectable so tests need no cluster. Read-only. */
@@ -264,6 +264,17 @@ async function syncChart(
     currentError = `installed version ${installed} did not render: ${errorMessage(e)}`;
   }
 
+  let imageKeys: ImageTagKey[] | null = null;
+  if (current) {
+    try {
+      const archive = await deps.workspace.pull(loc, installed);
+      imageKeys = await probeTagKeys(deps, archive, layers, merged, current, (values) => render(installed, values));
+    } catch (e) {
+      if (deps.signal.aborted) throw e;
+      notes.push(`could not find which values keys set the image tags, so images cannot be moved from here: ${errorMessage(e)}`);
+    }
+  }
+
   const rows: CandidateRow[] = [];
   for (const c of choices) {
     if (deps.signal.aborted) throw new Error("stopping");
@@ -347,6 +358,7 @@ async function syncChart(
         last_sync_at: at,
         sync_error: currentError,
         current_images: current ? JSON.stringify(current) : null,
+        image_keys: imageKeys ? JSON.stringify(imageKeys) : null,
         render_note: notes.length ? notes.join("; ") : null,
       })
       .where("id", "=", chart.id)
@@ -477,6 +489,42 @@ async function tracePins(
     }
   }
   return out.sort((a, b) => a.key.localeCompare(b.key) || a.valuesPath.join(".").localeCompare(b.valuesPath.join(".")));
+}
+
+/** Probe values look like this; a rendered tag matching it names the key that set it. */
+const PROBE = /^tagamend-probe-(\d+)$/;
+
+/**
+ * Which values key sets each image's tag. Every tag key the chart's defaults
+ * or the HelmRelease's values hold gets a unique probe value, and the
+ * installed version is rendered once: an image whose tag comes out as probe N
+ * is set by key N. When several keys could set an image (a per-component key
+ * over a shared one), the chart's own precedence decides, so the key found is
+ * the one that wins.
+ */
+async function probeTagKeys(
+  deps: Deps,
+  archive: string,
+  layers: ValuesLayer[],
+  merged: Values,
+  current: ChartImage[],
+  render: (values: Values) => Promise<ChartImage[]>,
+): Promise<ImageTagKey[]> {
+  const parsed = parseYaml(await deps.workspace.showValues(archive), { maxAliasCount: -1 }) as unknown;
+  const slots = findTagSlots(deepMerge(isMap(parsed) ? parsed : {}, merged));
+  const none = (key: string): ImageTagKey => ({ key, valuesPath: null, origin: null, digestHeld: false });
+  if (slots.length === 0) return current.map((i) => none(i.key));
+  const probe = slots.reduce((v, p, i) => setAt(v, p, `tagamend-probe-${i}`), merged);
+  const probed = new Map((await render(probe)).map((i) => [i.key, i]));
+  return current.map((img) => {
+    const r = probed.get(img.key);
+    const m = r?.tag ? PROBE.exec(r.tag) : null;
+    if (!r || !m) return none(img.key);
+    const valuesPath = slots[Number(m[1])]!;
+    let origin = "default";
+    for (const l of layers) if (getAt(l.values, valuesPath) !== undefined) origin = l.origin;
+    return { key: img.key, valuesPath, origin, digestHeld: !!r.digest };
+  });
 }
 
 /** The image with its digest from the registry; null digest when it cannot be resolved. */

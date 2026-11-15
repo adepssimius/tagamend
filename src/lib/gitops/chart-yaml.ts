@@ -1,4 +1,4 @@
-import { type Document, isMap, isScalar, parseAllDocuments, parse as parseYaml, type Scalar } from "yaml";
+import { type Document, isMap, isScalar, parseAllDocuments, parse as parseYaml, type Scalar, type YAMLMap } from "yaml";
 import { kustomizeNamespace } from "./locate";
 
 /**
@@ -20,6 +20,8 @@ export interface ChartEdit {
   field: string;
   /** "Kind/namespace/name" of the edited object. */
   object: string;
+  /** Lines added rather than a value replaced: `line` is the line they follow, `after` the added lines. */
+  added?: boolean;
 }
 
 /** A document found in the repo, with what is needed to edit it. */
@@ -85,6 +87,11 @@ export function isExactVersion(v: string): boolean {
 function render(node: Scalar, value: string): string {
   if (node.type === "QUOTE_SINGLE") return `'${value.replace(/'/g, "''")}'`;
   if (node.type === "QUOTE_DOUBLE") return JSON.stringify(value);
+  return plainOrQuoted(value);
+}
+
+/** `value` as a plain scalar when it reads back as the same string, else double-quoted. */
+function plainOrQuoted(value: string): string {
   let plainOk = false;
   try {
     plainOk = parseYaml(value) === value && !/[:#]\s|^[\s&*!|>'"%@`{[\]},-]|\s$/.test(value);
@@ -99,6 +106,79 @@ export interface Span {
   end: number;
   text: string;
   field: string;
+  /** An insertion (start === end) of whole lines. */
+  added?: boolean;
+}
+
+/**
+ * Plans writes of string values at key paths in one document: a key that
+ * exists is replaced in place (planScalar's rules); a missing one is added as
+ * new lines under the deepest map that exists on its path, indented like that
+ * map's own keys. Missing keys that share a parent are added together, so a
+ * new map is written once. Fails when that parent is a flow map (`{}`), empty,
+ * or not a map.
+ */
+export function planValueWrites(
+  found: FoundDoc,
+  source: string,
+  writes: { path: (string | number)[]; value: string }[],
+): { spans: Span[]; current: (string | null)[] } {
+  const where = `${found.kind} ${found.namespace ?? "?"}/${found.name} (${found.path})`;
+  const spans: Span[] = [];
+  const current: (string | null)[] = [];
+  type Tree = Map<string, Tree | string>;
+  const inserts = new Map<number, { at: number; indent: string; tree: Tree; fields: string[] }>();
+  for (const w of writes) {
+    if (found.doc.getIn(w.path, true) !== undefined) {
+      const r = planScalar(found, source, w.path, w.value);
+      spans.push(r.span);
+      current.push(r.current);
+      continue;
+    }
+    // The deepest map on the path that exists.
+    let depth = w.path.length - 1;
+    let parent: unknown;
+    while (depth > 0 && (parent = found.doc.getIn(w.path.slice(0, depth), true)) === undefined) depth--;
+    if (depth === 0) parent = found.doc.contents;
+    const field = w.path.slice(0, depth).join(".") || "(top level)";
+    if (!isMap(parent)) throw new ChartEditError(`${where}: ${field} is not a map, so ${w.path.join(".")} cannot be added; edit it by hand`);
+    const map = parent as YAMLMap;
+    if (map.flow || map.items.length === 0) throw new ChartEditError(`${where}: ${field} is empty or written inline ({}), so ${w.path.join(".")} cannot be added; edit it by hand`);
+    const firstKey = map.items[0]!.key as { range?: [number, number, number] } | null;
+    const last = map.items[map.items.length - 1]!;
+    const lastEnd = (last.value as { range?: [number, number, number] } | null)?.range?.[1] ?? (last.key as { range?: [number, number, number] }).range![1];
+    if (!firstKey?.range) throw new ChartEditError(`${where}: cannot place a new key under ${field}; edit it by hand`);
+    const keyStart = firstKey.range[0];
+    const indent = source.slice(source.lastIndexOf("\n", keyStart - 1) + 1, keyStart);
+    if (!/^ *$/.test(indent)) throw new ChartEditError(`${where}: ${field} is not a block map; edit it by hand`);
+    let at = source[lastEnd - 1] === "\n" ? lastEnd - 1 : source.indexOf("\n", lastEnd);
+    if (at === -1) at = source.length;
+    let ins = inserts.get(keyStart);
+    if (!ins) inserts.set(keyStart, (ins = { at, indent, tree: new Map(), fields: [] }));
+    let node = ins.tree;
+    const rest = w.path.slice(depth).map(String);
+    for (const seg of rest.slice(0, -1)) {
+      let next = node.get(seg);
+      if (typeof next === "string") throw new ChartEditError(`${where}: ${w.path.join(".")} conflicts with another value written in this PR`);
+      if (!next) node.set(seg, (next = new Map()));
+      node = next;
+    }
+    node.set(rest[rest.length - 1]!, w.value);
+    ins.fields.push(w.path.join("."));
+    current.push(null);
+  }
+  const lines = (tree: Tree, indent: string): string[] =>
+    [...tree].flatMap(([k, v]) => (typeof v === "string" ? [`${indent}${plainOrQuoted(k)}: ${plainOrQuoted(v)}`] : [`${indent}${plainOrQuoted(k)}:`, ...lines(v, indent + "  ")]));
+  // Inserts at one offset are written deepest first, so each lands inside its own map.
+  const byOffset = new Map<number, { indent: string; text: string; fields: string[] }[]>();
+  for (const ins of inserts.values()) {
+    byOffset.set(ins.at, [...(byOffset.get(ins.at) ?? []), { indent: ins.indent, text: lines(ins.tree, ins.indent).join("\n"), fields: ins.fields }]);
+  }
+  for (const [at, list] of byOffset) {
+    list.sort((a, b) => b.indent.length - a.indent.length);
+    spans.push({ start: at, end: at, text: list.map((l) => `\n${l.text}`).join(""), field: list.flatMap((l) => l.fields).join(", "), added: true });
+  }
+  return { spans, current };
 }
 
 /**
@@ -140,13 +220,18 @@ export function applySpans(path: string, source: string, spans: (Span & { object
   let text = source;
   for (const s of sorted) text = text.slice(0, s.start) + s.text + text.slice(s.end);
   const before = source.split("\n");
-  const after = text.split("\n");
   const lineOf = (off: number) => source.slice(0, off).split("\n").length;
+  // Lines are numbered as in the base file; an addition follows its line.
   const edits = [...spans]
     .sort((a, b) => a.start - b.start)
-    .map((s) => {
+    .map((s): ChartEdit => {
       const line = lineOf(s.start);
-      return { path, line, before: before[line - 1]!, after: after[line - 1]!, field: s.field, object: s.object };
+      if (s.added) return { path, line, before: "", after: s.text.replace(/^\n/, ""), field: s.field, object: s.object, added: true };
+      // The edited line on its own: added lines elsewhere shift the new file's numbering.
+      const lineStart = source.lastIndexOf("\n", s.start - 1) + 1;
+      const lineEnd = source.indexOf("\n", s.end) === -1 ? source.length : source.indexOf("\n", s.end);
+      const edited = source.slice(lineStart, s.start) + s.text + source.slice(s.end, lineEnd);
+      return { path, line, before: before[line - 1]!, after: edited, field: s.field, object: s.object };
     });
   return { text, edits };
 }

@@ -47,3 +47,31 @@ export interface PinnedImage {
   /** What the candidate chart renders for this image with the pin removed. */
   chartDefault: ChartImage | null;
 }
+
+/**
+ * Which values key sets an image's tag, found by rendering the installed
+ * version with a unique probe value in every tag key at once: the image whose
+ * tag comes out as probe N is set by key N, the most specific one that wins.
+ */
+export interface ImageTagKey {
+  /** The image's key, as in ChartImage.key. */
+  key: string;
+  /** Path inside the merged values; null when no tag key moves the image. */
+  valuesPath: string[] | null;
+  /** "inline" (spec.values sets it), "ConfigMap/<name>" (a valuesFrom layer sets it) or "default" (only the chart's defaults). */
+  origin: string | null;
+  /** The render still carries a digest from elsewhere, so a new tag alone would not move the image. */
+  digestHeld: boolean;
+}
+
+/** One image an image-move PR sets to a tag. */
+export interface ImageMoveTarget {
+  key: string;
+  kind: string;
+  name: string;
+  registry: string;
+  repository: string;
+  valuesPath: string[];
+  from: string | null;
+  to: string;
+}

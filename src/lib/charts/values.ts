@@ -86,3 +86,31 @@ export function withoutKey(values: Values, path: string[]): Values {
   else if (isMap(out[head])) out[head] = withoutKey(out[head], rest);
   return out;
 }
+
+/**
+ * Paths of every `tag` key a chart could read for an image: each map that has
+ * a `tag` key (any scalar or empty value), or a `repository` key with no tag
+ * beside it. Walks the chart's default values merged with the HelmRelease's,
+ * so keys the chart leaves empty (a tag that defaults to the app version) are
+ * found too. Lists are not entered.
+ */
+export function findTagSlots(values: Values, limit = 64): string[][] {
+  const out: string[][] = [];
+  const walk = (v: unknown, path: string[]) => {
+    if (!isMap(v) || out.length >= limit) return;
+    const tag = v.tag;
+    if ("tag" in v && (tag == null || typeof tag === "string" || typeof tag === "number")) out.push([...path, "tag"]);
+    else if (typeof v.repository === "string" && !("tag" in v)) out.push([...path, "tag"]);
+    for (const [k, child] of Object.entries(v)) if (k !== "tag") walk(child, [...path, k]);
+  };
+  walk(values, []);
+  return out.slice(0, limit);
+}
+
+/** A copy of `values` with `value` set at `path`, creating maps on the way. */
+export function setAt(values: Values, path: string[], value: unknown): Values {
+  const [head, ...rest] = path as [string, ...string[]];
+  const out = { ...values };
+  out[head] = rest.length === 0 ? value : setAt(isMap(out[head]) ? out[head] : {}, rest, value);
+  return out;
+}

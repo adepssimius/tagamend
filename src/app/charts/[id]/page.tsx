@@ -5,15 +5,16 @@ import { SubmitButton } from "@/components/submit-button";
 import { Ago, Empty, ErrorText, linkClass, mutedClass, ScanStatusBadge, Section, SeverityCount, ShortDigest, Table } from "@/components/ui";
 import type { ChartChangeDiff } from "@/lib/charts/diff";
 import type { ChartImage } from "@/lib/charts/types";
-import type { ChartPullRequest } from "@/lib/db/schema";
 import { getConfig } from "@/lib/config";
 import { getDb } from "@/lib/db";
 import type { CveCounts } from "@/lib/queries/common";
-import { type ChartCandidateRow, type ChartPage as ChartPageData, getChartPage } from "@/lib/queries/charts";
+import { type ChartCandidateRow, type ChartPage as ChartPageData, chartImagePrs, getChartPage, getImageMoveRows, type MoveImageRow, type MoveTagOption } from "@/lib/queries/charts";
+import type { Chart, ChartImagePr, ChartPullRequest } from "@/lib/db/schema";
+import { imageMoveTargets } from "@/lib/gitops/chart-image-moves";
 import { diffSummary } from "@/lib/trivy/diff";
 import { ChartPrState, ChartScanState, Delta, Exploited, SourceName } from "../components";
 import { refreshChartPrStates } from "@/lib/gitops/pr-state";
-import { checkChartNow, openChartPullRequest, scanChartCandidate } from "./actions";
+import { checkChartNow, openChartPullRequest, openImageMove, scanChartCandidate, scanMoveTags } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function ChartPage({ params, searchParams }: { params: Prom
   const prsEnabled = !!config.GITOPS_REPO;
   const prError = one(sp.prError);
   const workloadCount = new Set(workloads.map((w) => `${w.kind}/${w.name}`)).size;
+  const [moveRows, imagePrs] = await Promise.all([getImageMoveRows(db, chart, workloads), chartImagePrs(db, chart.id)]);
 
   return (
     <div>
@@ -95,41 +97,14 @@ export default async function ChartPage({ params, searchParams }: { params: Prom
         </div>
       )}
 
-      <Section title="Current images" count={currentImages.length} note="What the installed version renders with this HelmRelease's values.">
-        {currentImages.length === 0 ? (
-          <Empty>{chart.last_sync_at ? "The installed version renders no images." : "Not rendered yet."}</Empty>
-        ) : (
-          <Table>
-            <thead>
-              <tr>
-                <th>Object</th>
-                <th>Field</th>
-                <th>Image</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentImages.map((i) => (
-                <tr key={i.key}>
-                  <td>
-                    <span className={mutedClass}>{i.kind}/</span>
-                    {i.name}
-                  </td>
-                  <td className={`font-mono text-xs ${mutedClass}`}>{fieldOf(i.key)}</td>
-                  <td className="break-all font-mono text-xs">
-                    {i.imageId != null ? (
-                      <Link href={`/images/${i.imageId}`} className={linkClass}>
-                        {i.ref}
-                      </Link>
-                    ) : (
-                      i.ref
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </Section>
+      <MoveImages
+        chart={chart}
+        rows={moveRows}
+        prs={imagePrs}
+        prsEnabled={prsEnabled}
+        moveError={one(sp.moveError)}
+        preset={{ imageId: Number(one(sp.imageId)), tag: one(sp.tag) }}
+      />
 
       <Section title="Candidate versions" count={candidates.length}>
         {candidates.length === 0 ? (
@@ -410,7 +385,7 @@ function CandidateDetail({
 }
 
 /** PR requests to list: a failed attempt is hidden once a later one opened a PR. */
-function visiblePrs(prs: ChartPullRequest[]): ChartPullRequest[] {
+function visiblePrs<T extends Pick<ChartPullRequest, "status">>(prs: T[]): T[] {
   // Newest first, so an opened PR is seen before the failures it supersedes.
   let opened = false;
   return prs.filter((p) => {
@@ -562,5 +537,164 @@ function ScanCell({ d }: { d: ChartChangeDiff }) {
       {d.scan.status === "done" && !d.diff && <span className={`text-xs ${mutedClass}`}>nothing running to compare</span>}
       {d.scan.status === "failed" && d.scan.error && <ErrorText>{d.scan.error}</ErrorText>}
     </div>
+  );
+}
+
+const countsLabel = (o: MoveTagOption) =>
+  o.counts
+    ? ` · ${o.counts.critical}C ${o.counts.high}H ${o.counts.medium}M${o.counts.exploited ? ` ${o.counts.exploited} KEV` : ""}`
+    : o.scanStatus === "queued" || o.scanStatus === "running"
+      ? " · scanning"
+      : o.scanStatus === "failed"
+        ? " · scan failed"
+        : " · not scanned";
+
+/**
+ * Every image the installed chart runs, with a tag to move each to. One PR
+ * sets all the chosen tags in the HelmRelease's values, without changing the
+ * chart version.
+ */
+function MoveImages({
+  chart,
+  rows,
+  prs,
+  prsEnabled,
+  moveError,
+  preset,
+}: {
+  chart: Chart;
+  rows: MoveImageRow[];
+  prs: ChartImagePr[];
+  prsEnabled: boolean;
+  moveError: string | undefined;
+  /** From the image page: preselect this tag for this image's rows. */
+  preset: { imageId: number; tag: string | undefined };
+}) {
+  const presetFor = (r: MoveImageRow) =>
+    preset.tag && r.image.imageId === preset.imageId && r.options.some((o) => o.tag === preset.tag) ? preset.tag : "";
+  const running = new Map(rows.map((r) => [r.image.key, r.image.tag]));
+  const canMove = prsEnabled && rows.some((r) => !r.blocked);
+  return (
+    <Section
+      title="Images"
+      count={rows.length}
+      note="What the installed version runs with this HelmRelease's values. Pick a tag per image to move them in one PR; the chart version stays as it is."
+    >
+      <div id="move" />
+      {rows.length === 0 ? (
+        <Empty>{chart.last_sync_at ? "The installed version renders no images." : "Not rendered yet."}</Empty>
+      ) : (
+        <form action={openImageMove}>
+          <input type="hidden" name="chartId" value={chart.id} />
+          <Table>
+            <thead>
+              <tr>
+                <th>Object</th>
+                <th>Running</th>
+                <th className="text-right">Crit</th>
+                <th className="text-right">High</th>
+                <th className="text-right" title="Known exploited: in CISA's KEV catalog">
+                  KEV
+                </th>
+                <th>Move to</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.image.key}>
+                  <td>
+                    <span className={mutedClass}>{r.image.kind}/</span>
+                    {r.image.name}
+                    <div className={`font-mono text-[11px] ${mutedClass}`}>{fieldOf(r.image.key)}</div>
+                  </td>
+                  <td className="break-all font-mono text-xs">
+                    {r.image.imageId != null ? (
+                      <Link href={`/images/${r.image.imageId}`} className={linkClass}>
+                        {r.image.ref}
+                      </Link>
+                    ) : (
+                      r.image.ref
+                    )}
+                  </td>
+                  <td className="text-right">{r.running ? <SeverityCount severity="CRITICAL" n={r.running.critical} /> : <span className={mutedClass}>—</span>}</td>
+                  <td className="text-right">{r.running ? <SeverityCount severity="HIGH" n={r.running.high} /> : <span className={mutedClass}>—</span>}</td>
+                  <td className="text-right">{r.running ? <Exploited n={r.running.exploited} /> : <span className={mutedClass}>—</span>}</td>
+                  <td className="text-xs">
+                    {r.blocked ? (
+                      <span className={mutedClass}>Not movable here: {r.blocked}.</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <select name={`tag:${r.image.key}`} defaultValue={presetFor(r)} className="max-w-[18rem] rounded border border-zinc-300 bg-white px-1 py-0.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900">
+                            <option value="">keep {r.image.tag ?? r.image.ref}</option>
+                            {r.options
+                              .filter((o) => o.tag !== r.image.tag)
+                              .map((o) => (
+                                <option key={o.tag} value={o.tag}>
+                                  {o.tag}
+                                  {o.isCandidate ? "" : " (older or not a candidate)"}
+                                  {countsLabel(o)}
+                                </option>
+                              ))}
+                          </select>
+                          <input
+                            name={`other:${r.image.key}`}
+                            placeholder="or type a tag"
+                            className="w-32 rounded border border-zinc-300 bg-white px-1 py-0.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                          />
+                        </div>
+                        <div className={`font-mono text-[11px] ${mutedClass}`}>
+                          values: {r.key!.valuesPath!.join(".")}
+                          {r.key!.origin === "default" && <span className="font-sans"> (not set yet; the PR adds it)</span>}
+                        </div>
+                        {r.sharesKeyWith.length > 0 && (
+                          <div className="text-[11px] text-amber-800 dark:text-amber-300">Same key as {r.sharesKeyWith.join(", ")}: they move together.</div>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          {canMove && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <SubmitButton pendingText="Queuing…">Open PR</SubmitButton>
+              <button formAction={scanMoveTags} className={`${linkClass} text-xs`}>
+                Scan the chosen tags
+              </button>
+              <span className={`text-xs ${mutedClass}`}>Counts in the list are from scans; a typed tag is not scanned from here.</span>
+            </div>
+          )}
+        </form>
+      )}
+      {moveError && (
+        <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 dark:border-red-900 dark:bg-red-950/40">
+          <p className="text-xs font-medium text-red-800 dark:text-red-300">Could not queue the PR</p>
+          <ErrorText>{moveError}</ErrorText>
+        </div>
+      )}
+      {prs.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {visiblePrs(prs).slice(0, 10).map((p) => {
+            const targets = imageMoveTargets(p);
+            const landed = targets.every((t) => running.get(t.key) === t.to);
+            return (
+              <div key={p.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+                <ChartPrState pr={p} landed={landed} />
+                <span className="font-mono">
+                  {[...new Set(targets.map((t) => `${t.repository.split("/").pop()} → ${t.to}`))].join(", ")}
+                </span>
+                {p.requested_by && (
+                  <span className={mutedClass}>
+                    · {p.requested_by}, <Ago iso={p.requested_at} />
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
   );
 }

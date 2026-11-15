@@ -1,7 +1,8 @@
 import type { DB } from "../db";
-import type { Chart, ChartCandidate, ChartPullRequest, Scan, Workload } from "../db/schema";
+import type { Chart, ChartCandidate, ChartImagePr, ChartPullRequest, Scan, Workload } from "../db/schema";
 import { type ChartChangeDiff, chartCandidateDiff } from "../charts/diff";
-import type { ChartImage, ChartImageChange, PinnedImage } from "../charts/types";
+import type { ChartImage, ChartImageChange, ImageTagKey, PinnedImage } from "../charts/types";
+import { chartImageKeys as chartImageKeysOf, moveBlocker } from "../gitops/chart-image-moves";
 import { compareTagVersions, type CveCounts, cveCounts, liveWorkloads, scanKey, unionVulns, vulnsForDigests } from "./common";
 import { kevFor } from "./kev";
 
@@ -301,4 +302,78 @@ export async function chartsWithCandidate(db: DB): Promise<number> {
     .select((eb) => eb.fn.countAll<number>().as("n"))
     .executeTakeFirstOrThrow();
   return Number(row.n);
+}
+
+export interface MoveTagOption {
+  tag: string;
+  digest: string | null;
+  isCandidate: boolean;
+  /** CVE counts of the newest done scan of this tag's digest; null when not scanned. */
+  counts: CveCounts | null;
+  scanStatus: Scan["status"] | null;
+}
+
+export interface MoveImageRow {
+  image: ChartImage & { imageId: number | null };
+  key: ImageTagKey | null;
+  /** Why it cannot be moved from here, or null. */
+  blocked: string | null;
+  /** Other images set by the same values key, which move with this one. */
+  sharesKeyWith: string[];
+  running: CveCounts | null;
+  /** Discovered tags newest first: candidates, then the rest the tag check kept. */
+  options: MoveTagOption[];
+}
+
+/** What the "Move images" form needs: per current image, its key and the tags it could move to. */
+export async function getImageMoveRows(db: DB, chart: Chart, workloads: Workload[]): Promise<MoveImageRow[]> {
+  const ids = await imageIds(db);
+  const images = chartCurrentImages(chart).map((i) => ({ ...i, imageId: ids.get(`${i.registry}/${i.repository}`) ?? null }));
+  const keys = new Map(chartImageKeysOf(chart).map((k) => [k.key, k]));
+  const imageIdList = [...new Set(images.flatMap((i) => (i.imageId != null ? [i.imageId] : [])))];
+  const tags = imageIdList.length ? await db.selectFrom("tags").selectAll().where("image_id", "in", imageIdList).execute() : [];
+  const scans = await scansForDigests(db, tags.flatMap((t) => (t.digest ? [t.digest] : [])));
+  const resultIds = [...scans.values()].flatMap((s) => (s.status === "done" && s.result_digest_id != null ? [s.result_digest_id] : []));
+  // Running digests per image, from the HelmRelease's workloads.
+  const runningDigests = new Map<number, Set<number>>();
+  for (const w of workloads) {
+    if (w.digest_id == null) continue;
+    let s = runningDigests.get(w.image_id);
+    if (!s) runningDigests.set(w.image_id, (s = new Set()));
+    s.add(w.digest_id);
+  }
+  const allDigests = [...new Set([...resultIds, ...[...runningDigests.values()].flatMap((s) => [...s])])];
+  const vulns = await vulnsForDigests(db, allDigests);
+  const kev = new Set((await kevFor(db, vulns.map((v) => v.vuln_id))).keys());
+  const countsOf = (digestIds: Set<number>) => cveCounts(unionVulns(vulns.filter((v) => digestIds.has(v.digest_id))), kev);
+
+  return images.map((image) => {
+    const key = keys.get(image.key) ?? null;
+    const pathKey = key?.valuesPath ? JSON.stringify(key.valuesPath) : null;
+    const sharesKeyWith = pathKey
+      ? images.filter((o) => o.key !== image.key && JSON.stringify(keys.get(o.key)?.valuesPath ?? null) === pathKey).map((o) => `${o.kind}/${o.name}`)
+      : [];
+    const options: MoveTagOption[] = sortChartTags(tags.filter((t) => t.image_id === image.imageId)).map((t) => {
+      const s = t.digest ? scans.get(scanKey(t.image_id, t.digest)) : undefined;
+      return {
+        tag: t.tag,
+        digest: t.digest,
+        isCandidate: !!t.is_candidate,
+        scanStatus: s?.status ?? null,
+        counts: s?.status === "done" && s.result_digest_id != null ? countsOf(new Set([s.result_digest_id])) : null,
+      };
+    });
+    const running = image.imageId != null && runningDigests.has(image.imageId) ? countsOf(runningDigests.get(image.imageId)!) : null;
+    return { image, key, blocked: chart.image_keys ? moveBlocker(key ?? undefined) : "the chart check has not looked for its values key yet", sharesKeyWith, running, options };
+  });
+}
+
+/** Candidates first, newest first; then the other tags, newest first. */
+function sortChartTags<T extends { tag: string; is_candidate: number }>(tags: T[]): T[] {
+  return [...tags].sort((a, b) => b.is_candidate - a.is_candidate || compareTagVersions(b.tag, a.tag));
+}
+
+/** Image-move PR requests for a chart, newest first. */
+export async function chartImagePrs(db: DB, chartId: number): Promise<ChartImagePr[]> {
+  return db.selectFrom("chart_image_prs").selectAll().where("chart_id", "=", chartId).orderBy("id", "desc").execute();
 }

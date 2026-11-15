@@ -23,17 +23,19 @@ type StateOpts = { repo: string | undefined; token: string | undefined; github?:
 export async function refreshPrStates(db: DB, opts: StateOpts & { imageId?: number }): Promise<number> {
   const tags = await refreshTable(db, "pull_requests", opts.imageId !== undefined ? ["image_id", opts.imageId] : null, opts);
   const charts = opts.imageId === undefined ? await refreshTable(db, "chart_pull_requests", null, opts) : 0;
-  return tags + charts;
+  const moves = opts.imageId === undefined ? await refreshTable(db, "chart_image_prs", null, opts) : 0;
+  return tags + charts + moves;
 }
 
 /** refreshPrStates for chart upgrade PRs, optionally of one chart. Same rules. */
 export async function refreshChartPrStates(db: DB, opts: StateOpts & { chartId?: number }): Promise<number> {
-  return refreshTable(db, "chart_pull_requests", opts.chartId !== undefined ? ["chart_id", opts.chartId] : null, opts);
+  const only: ["chart_id", number] | null = opts.chartId !== undefined ? ["chart_id", opts.chartId] : null;
+  return (await refreshTable(db, "chart_pull_requests", only, opts)) + (await refreshTable(db, "chart_image_prs", only, opts));
 }
 
 async function refreshTable(
   db: DB,
-  table: "pull_requests" | "chart_pull_requests",
+  table: "pull_requests" | "chart_pull_requests" | "chart_image_prs",
   only: ["image_id" | "chart_id", number] | null,
   opts: StateOpts,
 ): Promise<number> {

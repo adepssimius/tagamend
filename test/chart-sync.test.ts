@@ -66,6 +66,9 @@ function fakeHelm(opts: { failVersions?: string[] } = {}) {
       ];
       return { code: 0, stdout: docs.map((d) => `---\n${stringify(d)}`).join(""), stderr: "" };
     }
+    if (args[0] === "show" && args[1] === "values") {
+      return { code: 0, stdout: "shared:\n  image:\n    tag: \"\"\nserver:\n  image: {}\nworker:\n  image:\n    repository: ghcr.io/example/server\n", stderr: "" };
+    }
     return { code: 2, stdout: "", stderr: "unexpected" };
   };
   return { run, calls };
@@ -169,6 +172,13 @@ for (const { name, url } of testDatabases()) {
         "Deployment/demo-server:spec.template.spec.containers[0].image=ghcr.io/example/server:v1.0.0",
         "Deployment/demo-worker:spec.template.spec.containers[0].image=ghcr.io/example/server:v1.0.0",
         "StatefulSet/demo-db:spec.template.spec.containers[0].image=postgres:16",
+      ]);
+
+      // One probe render finds the key that wins for each image; the database has none.
+      expect(JSON.parse(chart!.image_keys!)).toEqual([
+        { key: "Deployment/demo-server:spec.template.spec.containers[0].image", valuesPath: ["server", "image", "tag"], origin: "inline", digestHeld: false },
+        { key: "Deployment/demo-worker:spec.template.spec.containers[0].image", valuesPath: ["worker", "image", "tag"], origin: "inline", digestHeld: false },
+        { key: "StatefulSet/demo-db:spec.template.spec.containers[0].image", valuesPath: null, origin: null, digestHeld: false },
       ]);
 
       const cands = await candidateRows(db, chart!.id);
